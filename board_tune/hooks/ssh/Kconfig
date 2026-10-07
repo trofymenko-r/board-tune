@@ -1,0 +1,63 @@
+menuconfig SSH
+	bool "SSH server"
+	help
+	  Configure the OpenSSH server.
+
+if SSH
+
+config SSH_ENABLE
+	bool "Start the SSH server at boot"
+	default y
+	help
+	  When disabled, whether the server starts is left unchanged.
+
+config SSH_PORT
+	int "Port"
+	range 1 65535
+	default 22
+
+choice
+	prompt "Root login"
+	default SSH_ROOT_LOGIN_KEEP
+
+config SSH_ROOT_LOGIN_KEEP
+	bool "Distribution default"
+
+config SSH_ROOT_LOGIN_NO
+	bool "Not allowed"
+
+config SSH_ROOT_LOGIN_KEY
+	bool "Public key only"
+
+config SSH_ROOT_LOGIN_YES
+	bool "Allowed"
+
+endchoice
+
+choice
+	prompt "Password authentication"
+	default SSH_PASSWORD_AUTH_KEEP
+
+config SSH_PASSWORD_AUTH_KEEP
+	bool "Distribution default"
+
+config SSH_PASSWORD_AUTH_YES
+	bool "Allowed"
+
+config SSH_PASSWORD_AUTH_NO
+	bool "Disabled"
+
+endchoice
+
+config SSH_AUTHORIZED_KEYS
+	string "Authorized keys file on this host"
+	help
+	  Public keys to authorize, e.g. ~/.ssh/id_ed25519.pub. They are
+	  added to the user's authorized_keys; existing keys are kept.
+
+config SSH_AUTHORIZED_KEYS_USER
+	string "Authorize the keys for user"
+	depends on SSH_AUTHORIZED_KEYS != ""
+	default "root"
+
+endif
