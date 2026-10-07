@@ -6,67 +6,9 @@ from board_tune.errors import Error
 from board_tune.kconfig import Configuration
 from board_tune.registry import Registry
 
-PLATFORM = """\
-from board_tune.registry import Board, Platform
-
-class Dummy(Platform):
-    title = "Dummy"
-    boards = (Board("DUMMY_A", "Dummy A"), Board("DUMMY_B", "Dummy B"))
-
-PLATFORM = Dummy()
-"""
-
-HOOK = """\
-from board_tune.registry import Hook
-
-class Greeting(Hook):
-    title = "Greeting"
-    symbol = "GREETING"
-
-    def plan(self, ctx):
-        ctx.plan.write("/etc/motd", self.message(ctx) + "\\n")
-
-    def message(self, ctx):
-        return ctx.config.str("GREETING_TEXT")
-
-HOOK = Greeting()
-"""
-
-HOOK_KCONFIG = """\
-menuconfig GREETING
-	bool "Greeting"
-
-if GREETING
-
-config GREETING_TEXT
-	string "Text"
-	default "hello"
-
-config GREETING_REPEAT
-	int "Repeat"
-	range 1 10
-	default 1
-
-endif
-"""
-
-PLATFORM_HOOK_KCONFIG = """\
-config DUMMY_B_LOUD
-	bool "Loud greeting"
-	depends on GREETING && BOARD_DUMMY_B
-"""
-
 
 @pytest.fixture
-def registry(tmp_path, monkeypatch):
-    ext = tmp_path / "ext"
-    (ext / "platforms/dummy/hooks").mkdir(parents=True)
-    (ext / "platforms/dummy/__init__.py").write_text(PLATFORM)
-    (ext / "platforms/dummy/hooks/greeting.Kconfig").write_text(PLATFORM_HOOK_KCONFIG)
-    (ext / "hooks/greeting").mkdir(parents=True)
-    (ext / "hooks/greeting/__init__.py").write_text(HOOK)
-    (ext / "hooks/greeting/Kconfig").write_text(HOOK_KCONFIG)
-    monkeypatch.setenv("BOARD_TUNE_PATH", str(ext))
+def registry(ext_path):
     return Registry.load()
 
 

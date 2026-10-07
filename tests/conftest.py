@@ -107,3 +107,68 @@ def rootfs(tmp_path: Path) -> Path:
 @pytest.fixture
 def target(rootfs: Path) -> LocalTarget:
     return LocalTarget({"/": str(rootfs)})
+
+
+DUMMY_PLATFORM = """\
+from board_tune.registry import Board, Platform
+
+class Dummy(Platform):
+    title = "Dummy"
+    boards = (Board("DUMMY_A", "Dummy A"), Board("DUMMY_B", "Dummy B"))
+
+PLATFORM = Dummy()
+"""
+
+DUMMY_HOOK = """\
+from board_tune.registry import Hook
+
+class Greeting(Hook):
+    title = "Greeting"
+    symbol = "GREETING"
+
+    def plan(self, ctx):
+        ctx.plan.write("/etc/motd", self.message(ctx) + "\\n")
+
+    def message(self, ctx):
+        return ctx.config.str("GREETING_TEXT")
+
+HOOK = Greeting()
+"""
+
+DUMMY_HOOK_KCONFIG = """\
+menuconfig GREETING
+	bool "Greeting"
+
+if GREETING
+
+config GREETING_TEXT
+	string "Text"
+	default "hello"
+
+config GREETING_REPEAT
+	int "Repeat"
+	range 1 10
+	default 1
+
+endif
+"""
+
+DUMMY_PLATFORM_HOOK_KCONFIG = """\
+config DUMMY_B_LOUD
+	bool "Loud greeting"
+	depends on GREETING && BOARD_DUMMY_B
+"""
+
+
+@pytest.fixture
+def ext_path(tmp_path, monkeypatch):
+    """An out-of-tree dummy platform and hook on BOARD_TUNE_PATH."""
+    ext = tmp_path / "ext"
+    (ext / "platforms/dummy/hooks").mkdir(parents=True)
+    (ext / "platforms/dummy/__init__.py").write_text(DUMMY_PLATFORM)
+    (ext / "platforms/dummy/hooks/greeting.Kconfig").write_text(DUMMY_PLATFORM_HOOK_KCONFIG)
+    (ext / "hooks/greeting").mkdir(parents=True)
+    (ext / "hooks/greeting/__init__.py").write_text(DUMMY_HOOK)
+    (ext / "hooks/greeting/Kconfig").write_text(DUMMY_HOOK_KCONFIG)
+    monkeypatch.setenv("BOARD_TUNE_PATH", str(ext))
+    return ext
