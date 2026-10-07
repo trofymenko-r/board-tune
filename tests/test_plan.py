@@ -64,6 +64,17 @@ def test_mode_change_is_detected(target, rootfs):
     assert plan.changed("/etc/new")
 
 
+def test_changed_since(target):
+    plan = Plan(target)
+    plan.write("/etc/a", "1")
+    snapshot = plan.snapshot()
+    assert not plan.changed_since(snapshot)
+    plan.write("/etc/passwd", plan.read("/etc/passwd"))
+    assert not plan.changed_since(snapshot)
+    plan.write("/etc/passwd", "")
+    assert plan.changed_since(snapshot)
+
+
 def test_commands_only_on_live_targets(target):
     plan = Plan(target)
     plan.command(["systemctl", "daemon-reload"])

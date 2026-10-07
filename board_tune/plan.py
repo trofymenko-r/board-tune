@@ -169,6 +169,15 @@ class Plan:
         return any(self._change(p, self._staged[p]) is not None
                    for p in paths if p in self._staged)
 
+    def snapshot(self) -> dict[str, object]:
+        """Remember the staged state, for changed_since()."""
+        return dict(self._staged)
+
+    def changed_since(self, snapshot: dict[str, object]) -> bool:
+        """Whether paths staged after snapshot() differ from the target."""
+        return any(self._change(p, s) is not None
+                   for p, s in self._staged.items() if snapshot.get(p) is not s)
+
     def changes(self) -> list[Change]:
         changes = (self._change(p, s) for p, s in self._staged.items())
         return [c for c in changes if c is not None]
