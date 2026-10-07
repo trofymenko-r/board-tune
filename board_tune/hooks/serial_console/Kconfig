@@ -1,0 +1,48 @@
+menuconfig SERIAL_CONSOLE
+	bool "Serial console"
+	help
+	  Put the kernel console and a login prompt on the board's serial
+	  port. Which UART is used is a board option shown below once a
+	  board is selected.
+
+if SERIAL_CONSOLE
+
+config SERIAL_CONSOLE_BAUD
+	int "Baud rate"
+	default 115200
+
+config SERIAL_CONSOLE_PRIMARY
+	bool "Make the serial port the primary console"
+	default y
+	help
+	  The last console= on the kernel command line becomes
+	  /dev/console, which receives the systemd status output and the
+	  emergency shell. Otherwise the display keeps that role.
+
+config SERIAL_CONSOLE_VERBOSE
+	bool "Full boot log"
+	default y
+	help
+	  Remove "quiet" and "splash" from the kernel command line so
+	  that the complete kernel and systemd boot log is printed.
+
+config SERIAL_CONSOLE_LOGLEVEL
+	int "Kernel console log level"
+	depends on SERIAL_CONSOLE_VERBOSE
+	range 1 8
+	default 7
+	help
+	  Kernel messages with a priority below this level reach the
+	  console. 7 shows everything but debug messages, 8 shows all.
+
+config SERIAL_CONSOLE_AUTOLOGIN
+	bool "Automatic login"
+	help
+	  Log in on the serial console without a password.
+
+config SERIAL_CONSOLE_AUTOLOGIN_USER
+	string "Automatic login user"
+	depends on SERIAL_CONSOLE_AUTOLOGIN
+	default "root"
+
+endif

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from board_tune import systemd
 from board_tune.errors import Error, Unsupported
 from board_tune.registry import Board, Context, Platform
 
@@ -75,6 +76,20 @@ class RaspberryPi(Platform):
         if new != tokens:
             # The firmware expects everything on a single line.
             ctx.plan.write(path, " ".join(new) + "\n")
+
+    def setup_serial_console(self, ctx):
+        cfg = ctx.config
+        lines = ["enable_uart=1"]
+        if ctx.board.id == "RPI4" and cfg.enabled("RPI4_SERIAL_PL011"):
+            lines.append("dtoverlay=disable-bt")
+            systemd.daemon_reload(ctx.plan, systemd.disable(ctx.plan, "hciuart.service"))
+        if ctx.board.id == "RPI5" and cfg.enabled("RPI5_SERIAL_GPIO"):
+            lines += ["dtparam=uart0=on", "dtparam=uart0_console"]
+        if cfg.enabled("RPI_SERIAL_FIRMWARE_LOG"):
+            lines.append("uart_2ndstage=1")
+        self.config_txt(ctx, "serial_console", lines)
+        # The firmware replaces serial0 with the UART chosen above.
+        return "serial0"
 
 
 PLATFORM = RaspberryPi()
