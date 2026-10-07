@@ -1,4 +1,160 @@
 # board-tune
 
 Hook-based customization of Linux boards, either live over SSH or
-offline through their boot media.
+offline through their boot media. Options are chosen in a menuconfig
+interface or loaded from Kconfig-style profiles.
+
+Supported boards: Raspberry Pi 4 and 5 (including Pi 400/500 and the
+Compute Modules) with Raspberry Pi OS Lite or Desktop. The core is
+platform-agnostic; other boards are added as platforms.
+
+## Installation
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e .
+```
+
+This installs the `board-tune` command. The host must run Linux;
+offline targets additionally need `sudo`, `lsblk` and `losetup`.
+
+## Usage
+
+```
+board-tune [TARGET] [--load FILE]... [--set SYMBOL=VALUE]... [--save FILE]
+           [--menu] [-n|--dry-run] [-y|--yes]
+```
+
+| Command | Effect |
+|---|---|
+| `board-tune /dev/sdb` | Menu, then show the changes and apply them after confirmation |
+| `board-tune pi@192.168.1.50 --load rpi5.cfg` | Batch mode: no menu, invalid settings are errors |
+| `board-tune pi@192.168.1.50 --load rpi5.cfg --menu` | Menu on top of the loaded profile |
+| `board-tune --save rpi5.cfg` | Menu without a target: only save a profile |
+| `board-tune --load base.cfg --load eth.cfg --save lab.cfg` | Merge profiles into a new one |
+| `board-tune raspios.img --load rpi5.cfg --dry-run` | Show what would change in an image |
+
+Before anything is written, board-tune shows every file it is about to
+create, modify or remove, with a diff.
+
+### Targets
+
+- **`[user@]host`**: a running board, reached with the system `ssh`
+  client, so `~/.ssh/config`, agents and jump hosts work. The user must
+  be root or have passwordless `sudo` on the board.
+- **Block device** (`/dev/sdb`, `/dev/mmcblk0`): the board's SD card or
+  USB drive. Only removable disks are accepted, and disks with
+  partitions mounted outside `/media`, `/run/media` or `/mnt` are
+  refused. Partitions the desktop has already mounted are reused.
+- **Disk image** (`*.img`): attached with `losetup`.
+- **Directory**: a root filesystem that is already extracted or mounted.
+
+Offline targets find the root filesystem by its `/etc/os-release` and
+mount the other partitions where the image's `/etc/fstab` puts them.
+Nothing on an offline target is executed, and symlinks are resolved
+inside the target, never on the host.
+
+### Configuration files
+
+Profiles use the Kconfig `.config` format. They only need the options
+that differ from the defaults, which is what `--save` writes:
+
+```
+CONFIG_BOARD_RPI5=y
+CONFIG_SERIAL_CONSOLE=y
+CONFIG_SERIAL_CONSOLE_AUTOLOGIN=y
+CONFIG_NETWORK=y
+CONFIG_NETWORK_STATIC=y
+CONFIG_NETWORK_ADDRESS="192.168.1.50/24"
+CONFIG_NETWORK_GATEWAY="192.168.1.1"
+CONFIG_SSH=y
+CONFIG_SSH_PASSWORD_AUTH_NO=y
+```
+
+Several `--load` files are merged in order, and `--set` overrides
+single values (`--set NETWORK_ADDRESS=192.168.1.51/24`). In batch
+mode, unknown symbols and values whose dependencies are not met (for
+example a Pi 4 option in a Pi 5 profile) are errors instead of being
+silently dropped.
+
+## Hooks
+
+A hook whose menu entry is disabled leaves the target untouched. An
+enabled hook fully manages the files it owns; for example, turning off
+autologin removes the autologin drop-in again.
+
+### Serial console (`SERIAL_CONSOLE`)
+
+- Puts the kernel console on the serial port at the configured baud
+  rate, as the primary console (`/dev/console`) or next to the display.
+- Full boot log: removes `quiet` and `splash` and sets `loglevel`.
+- Optional autologin for a user on any serial getty.
+- Raspberry Pi 4: mini UART, or the PL011 with Bluetooth disabled.
+- Raspberry Pi 5: the debug UART connector, or UART0 on GPIO 14/15.
+- Optional firmware diagnostic output (`uart_2ndstage=1`). The
+  bootloader's own log is enabled with `BOOT_UART=1` in the EEPROM
+  configuration, which is not on the boot media.
+
+Settings go into a `config.txt` block under the board's filter
+(`[pi4]`/`[pi5]`), so they never apply to another board model.
+
+### Wired network (`NETWORK`)
+
+One Ethernet interface with DHCP or a static IPv4 address, gateway and
+DNS servers. Uses a NetworkManager profile (Raspberry Pi OS Bookworm and
+later) or a systemd-networkd file. Changes take effect on the next
+boot, so a live board never drops the connection that board-tune is
+using.
+
+### SSH server (`SSH`)
+
+Enables the OpenSSH server at boot and sets the port, root login and
+password authentication in an `sshd_config.d` drop-in. It can also add
+public keys from a file on the host to a user's `authorized_keys`. On
+live boards the configuration is checked with `sshd -t` before the
+server is reloaded.
+
+## Extending
+
+Hooks and platforms are directories with an `__init__.py`:
+
+```
+hooks/<name>/__init__.py      HOOK = MyHook()       (subclass of registry.Hook)
+hooks/<name>/Kconfig          options, gated by the hook's symbol
+platforms/<name>/__init__.py  PLATFORM = MyPlatform()  (subclass of registry.Platform)
+platforms/<name>/Kconfig      optional platform options
+platforms/<name>/hooks/<hook>.Kconfig   board options shown in a hook's menu
+```
+
+Besides the built-in ones in `board_tune/`, they are loaded from the
+directories listed in `BOARD_TUNE_PATH` (colon-separated, each with
+`hooks/` and/or `platforms/` subdirectories).
+
+A hook's `plan(ctx)` reads and stages changes through `ctx.plan`
+(`read`, `write`, `mkdir`, `symlink`, `remove`, `command`, `note`) and
+never touches the target directly. Staging what is already on the
+target is not a change, so hooks are idempotent as long as they
+compute the desired state. Board-specific work goes through
+`ctx.platform`; a platform that lacks a service raises `Unsupported`.
+
+## Testing
+
+```sh
+.venv/bin/pip install -e '.[test]'
+.venv/bin/pytest
+```
+
+The disk image test needs root to attach loop devices and is skipped
+otherwise:
+
+```sh
+sudo .venv/bin/pytest tests/test_block.py
+```
+
+## Limitations
+
+- Users and passwords are not managed yet.
+- Only one wired interface can be configured.
+- Network changes on live boards are not activated until a reboot.
+- The Raspberry Pi 5 GPIO UART option relies on the documented
+  `uart0_console` parameter and has not been tested on hardware yet.
