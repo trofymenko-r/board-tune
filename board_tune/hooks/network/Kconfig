@@ -1,0 +1,63 @@
+menuconfig NETWORK
+	bool "Wired network"
+	help
+	  Configure a wired Ethernet interface. Settings take effect on
+	  the next boot, so a live board never loses its connection
+	  halfway through.
+
+if NETWORK
+
+config NETWORK_IFACE
+	string "Interface"
+	default "eth0"
+
+choice
+	prompt "IPv4 configuration"
+	default NETWORK_DHCP
+
+config NETWORK_DHCP
+	bool "DHCP"
+
+config NETWORK_STATIC
+	bool "Static address"
+
+endchoice
+
+if NETWORK_STATIC
+
+config NETWORK_ADDRESS
+	string "Address with prefix length"
+	help
+	  For example 192.168.1.50/24.
+
+config NETWORK_GATEWAY
+	string "Gateway"
+	help
+	  Leave empty for a network without a default route.
+
+config NETWORK_DNS
+	string "DNS servers"
+	help
+	  Space-separated list, e.g. "1.1.1.1 8.8.8.8".
+
+endif
+
+choice
+	prompt "Network manager on the target"
+	default NETWORK_BACKEND_AUTO
+
+config NETWORK_BACKEND_AUTO
+	bool "Detect"
+	help
+	  NetworkManager when installed (Raspberry Pi OS Bookworm and
+	  later), otherwise systemd-networkd.
+
+config NETWORK_BACKEND_NM
+	bool "NetworkManager"
+
+config NETWORK_BACKEND_NETWORKD
+	bool "systemd-networkd"
+
+endchoice
+
+endif
