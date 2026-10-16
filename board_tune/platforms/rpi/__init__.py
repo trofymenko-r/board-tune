@@ -9,7 +9,7 @@ from board_tune import cmdline, systemd
 from board_tune.errors import Error, Unsupported
 from board_tune.registry import Board, Context, Platform
 
-from . import configtxt
+from . import configtxt, hardware
 
 BOOT_DIRS = ("/boot/firmware", "/boot")
 
@@ -47,23 +47,34 @@ class RaspberryPi(Platform):
 
     def detect_offline_board(self, target):
         # A stock image supports several models. Only our explicit, managed
-        # board filter identifies the model it was customized for.
+        # board filters identify the model it was customized for.
         filters = set()
+        starts = {f"# >>> board-tune: {name} >>>"
+                  for name in ("serial_console", "hardware_i2c", "hardware_spi")}
         for directory in BOOT_DIRS:
             data = target.read(f"{directory}/config.txt")
             if data is None:
                 continue
             inside = False
             for line in data.decode().splitlines():
-                if line.strip() == "# >>> board-tune: serial_console >>>":
+                if line.strip() in starts:
                     inside = True
-                elif line.strip() == "# <<< board-tune: serial_console <<<":
+                elif line.strip().startswith("# <<< board-tune:"):
                     inside = False
                 elif inside and line.strip() in ("[pi4]", "[pi5]"):
                     filters.add(line.strip()[1:-1])
         if len(filters) == 1:
             return next(b for b in self.boards if b.filter in filters)
         return None
+
+    def read_hardware(self, ctx):
+        directory = next((d for d in BOOT_DIRS if ctx.plan.exists(f"{d}/config.txt")), None)
+        return hardware.read(ctx, directory) if directory else {"HARDWARE": "n"}
+
+    def setup_hardware(self, ctx):
+        if all(ctx.config.enabled(f"HARDWARE_{bus}_KEEP") for bus in ("I2C", "SPI")):
+            return
+        hardware.setup(ctx, self.boot_dir(ctx))
 
     def read_serial_console(self, ctx):
         directory = next((d for d in BOOT_DIRS if ctx.plan.exists(f"{d}/config.txt")), None)

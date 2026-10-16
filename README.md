@@ -287,6 +287,44 @@ logins; keyboard changes are deferred until reboot/console reconfiguration.
 Hostname and NTP changes are activated on live targets. The initial NTP
 backend is systemd-timesyncd only; chrony and ntpd are left alone.
 
+### Hardware interfaces (`HARDWARE`)
+
+On Raspberry Pi 4/5, the primary header I2C bus (GPIO 2/3) and SPI0
+(GPIO 7-11) each have Keep, Enable and Disable actions. An unchecked
+Configure option or a Keep action leaves the corresponding settings alone.
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_I2C_ENABLE=y
+CONFIG_HARDWARE_SPI_ENABLE=y
+```
+
+Settings use separate, model-filtered `config.txt` blocks at the end of
+the file, after existing site settings. Conditional filters and overlay
+parameter scope are reset before writing base `i2c_arm`/`spi` parameters.
+Original directives, device overlays, I2C camera/VideoCore interfaces and
+additional buses are preserved. An explicit I2C action also writes a managed
+`/etc/modules-load.d/board-tune-i2c.conf` containing `i2c-dev`; disablement
+keeps this shared module available for other adapters' `/dev/i2c-*` nodes.
+Other module configuration is preserved.
+
+The menu imports explicit base boot parameters, including the `i2c` alias
+and combined dtparam lines. Unknown values, includes, overlay-scoped
+parameters and conditions that cannot be evaluated stay at Keep with a
+diagnostic. Absent parameters also stay at Keep: absence is not proof that
+a bus is disabled. This describes boot configuration, not runtime device
+status; hardware overlays/HATs and their pin conflicts are not evaluated.
+
+Changes take effect after reboot for SSH and offline media alike. There is
+no live module loading, overlay activation, GPIO access or bus scanning.
+Check attached hardware/pin usage before rebooting. SPI device overlays can
+claim chip selects instead of exposing spidev. The base parameter format and
+overlay-scope reset follow the
+[Raspberry Pi Device Tree documentation](https://www.raspberrypi.com/documentation/computers/configuration.html#dt-parameters).
+Additional buses, baud rates, 1-Wire, UARTs and Bluetooth follow in later
+hardware milestones.
+
 ## Extending
 
 Hooks and platforms are directories with an `__init__.py`:
@@ -307,7 +345,8 @@ A hook can implement `read(ctx)` to return a mapping of Kconfig symbol
 names to current string values (`"y"`/`"n"` for booleans), without staging
 changes. The default returns nothing, preserving existing extensions.
 Platforms can implement `detect_offline_board(target)` and
-`read_serial_console(ctx)` for boot-media detection and serial readback.
+`read_serial_console(ctx)` for boot-media detection and serial readback,
+and `read_hardware(ctx)` / `setup_hardware(ctx)` for hardware interfaces.
 
 A hook's `plan(ctx)` reads and stages changes through `ctx.plan`
 (`read`, `write`, `mkdir`, `symlink`, `remove`, `command`, `note`) and

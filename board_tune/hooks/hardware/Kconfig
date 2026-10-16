@@ -1,0 +1,50 @@
+config HARDWARE
+	bool "Configure hardware interfaces"
+	depends on PLATFORM_RPI
+	help
+	  Configure the primary header I2C and SPI0 buses at the next boot.
+	  Check connected hardware and GPIO assignments before enabling them.
+
+if HARDWARE
+
+choice
+	prompt "I2C (GPIO 2/3)"
+	default HARDWARE_I2C_KEEP
+
+config HARDWARE_I2C_KEEP
+	bool "Keep current"
+
+config HARDWARE_I2C_ENABLE
+	bool "Enable"
+	help
+	  Enable the ARM header I2C bus and load i2c-dev at boot for /dev/i2c-*.
+
+config HARDWARE_I2C_DISABLE
+	bool "Disable"
+	help
+	  Disable the ARM header I2C bus. Other I2C buses and camera interfaces
+	  are preserved. The shared i2c-dev module stays available for them.
+
+endchoice
+
+choice
+	prompt "SPI0 (GPIO 7-11)"
+	default HARDWARE_SPI_KEEP
+
+config HARDWARE_SPI_KEEP
+	bool "Keep current"
+
+config HARDWARE_SPI_ENABLE
+	bool "Enable"
+	help
+	  Enable the primary header SPI bus with its default chip selects.
+	  Device overlays can replace spidev with their own drivers.
+
+config HARDWARE_SPI_DISABLE
+	bool "Disable"
+	help
+	  Disable the primary SPI bus. Additional SPI buses are preserved.
+
+endchoice
+
+endif

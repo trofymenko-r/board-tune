@@ -26,7 +26,7 @@ be inferred from the existing design.
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented; Pi 5 SSH-key login, locked password, sudo and repeat application verified |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
-| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Pending |
+| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Primary I2C/SPI implemented and verified on Pi 5; remaining interfaces pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
 | 7 | Logging/recovery: persistent/RAM journal, size limits, hardware watchdog | Pending |
@@ -122,3 +122,26 @@ connection activation or radio unblock occurs during application.
 Physical checks and owner-run commands are in docs/board-checks.md. The next
 functional stage is hardware interfaces; pin usage and real device behavior
 must be verified on the corresponding board before relying on them.
+
+## Stage 4: primary I2C/SPI
+
+Implemented Keep/Enable/Disable for the primary header I2C and SPI0 buses,
+model-filtered config.txt blocks, shared i2c-dev boot loading, explicit-parameter
+readback and SSH/offline plans without runtime pin/module commands. Includes,
+overlay parameter scope and unknown firmware conditions are reported as
+uncertain rather than inferred to mean disabled. Hardware-generated blocks
+also identify the board family on otherwise ambiguous offline media.
+
+Tests cover preservation, both board families, repeated application, late
+site overrides, disablement, readback ambiguity, old boot locations, dry-run
+and real terminal menu editing. Full suite: 175 passed, 1 root-only skip.
+On the owner's Pi 5, enabling and disabling both controllers passed across
+reboots, with original camera/media devices and administrator access intact.
+The owner confirmed all header GPIOs are free and a camera is attached to MIPI0.
+Disabling the primary I2C controller keeps i2c-dev loaded for camera/other
+adapters; the physical disable test exposed and corrected removal of that
+shared module's boot file.
+Original boot/module files were restored from backup after the test; actual
+bus transfers, camera image capture and Pi 4 hardware remain untested.
+Remaining stage-4 work: 1-Wire, additional UARTs, overlays/parameters and
+Bluetooth. Baud rates/additional I2C/SPI buses are not part of this milestone.

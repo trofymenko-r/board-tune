@@ -88,6 +88,30 @@ supports them. Check disabled autoconnect and profile priorities separately.
 Do not include `nmcli --show-secrets` output in reports. Repeat application
 and check idempotency before and after reboot.
 
+## Hardware interfaces
+
+Confirm the primary header pins are available before enabling I2C (GPIO 2/3)
+and SPI0 (GPIO 7-11). Preserve camera/HAT overlays and use a test installation.
+No i2cdetect scans or SPI transfers are needed to verify controller enablement.
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_I2C_ENABLE=y
+CONFIG_HARDWARE_SPI_ENABLE=y
+```
+
+Preview/apply this profile over the existing administrator connection, record
+the backup ID, then reboot. Check `/dev/i2c-1`, `/dev/spidev0.0` and
+`/dev/spidev0.1` (unless a device overlay claims the chip selects),
+`lsmod | grep i2c_dev`, and the corresponding `/sys/bus/*/devices` entries.
+Check the connected camera's enumeration before/after the reboot. Repeat
+the same profile and expect no changes. Exercise Disable independently,
+reboot, and check only the primary controllers disappear while camera and
+other buses remain. Keep must preserve all files; no runtime commands should
+appear in the preview. File restore followed by reboot should recover the
+original boot/module configuration.
+
 ## Recovery
 
 Record the printed backup ID. Use `--list-backups`, inspect a
@@ -119,6 +143,35 @@ kernel 6.12.96+rpt-rpi-2712; connected as the existing administrator `mipi`.
 
 The `btcheck` account, its authorized public key and its managed passwordless
 sudo rule remain on the test board for further checks. The successful file
-backup is `20261016T222616Z-f897b11cadec` (board UTC clock); restoring it does
+backup is `20261016T222616Z-f897b11cadec` (UTC timestamp); restoring it does
 not remove the native user/group. Password-hash login, group changes, offline
 boot, System settings and Wi-Fi association were not exercised in this run.
+
+### 2026-10-17: primary I2C/SPI on Raspberry Pi 5
+
+Same Pi 5/Debian installation and SSH administrator as above. The owner
+confirmed the header GPIOs are free, with a camera on MIPI0 using the existing
+`db-mipi-a1,cam0` overlay. No bus scans, transfers or live pin activation ran.
+
+- Enable preview contained only two board-filtered config.txt blocks and the
+  i2c-dev modules-load file. Reapplying before and after reboot changed nothing.
+- After reboot, /dev/i2c-1, /dev/spidev0.0 and /dev/spidev0.1 appeared;
+  i2c_dev was loaded. Existing camera I2C clients, their driver bindings and
+  /dev/video* and /dev/media* lists matched their pre-test state exactly.
+- The initial disable test exposed removal of the shared i2c-dev boot file:
+  controller/driver entries survived, but other adapters' userspace nodes did
+  not. Fixed explicit I2C actions to retain shared i2c-dev boot loading.
+- With that correction, a further disable/reboot removed only /dev/i2c-1
+  and spidev0.0/0.1. Original /dev/i2c-10, -13, -14, -6 and spidev10.0
+  remained, with unchanged camera/media devices and working administrator sudo.
+  Reapplying the disable profile changed nothing.
+- Restored the original boot/module files from backup
+  `20261016T223712Z-623362a804d0`. Restore created safety backup
+  `20261016T224009Z-97763a759ea6`. The primary buses were already inactive,
+  so no further reboot followed the file restore; shared i2c-dev remained
+  loaded as in the pre-test runtime. Backup files remain for review.
+
+This establishes controller/device enumeration, not communication with an
+attached I2C/SPI peripheral. `rpicam-hello --list-cameras` reported no cameras
+before any change; image capture through the custom MIPI driver was not tested.
+Pi 4 hardware and booting offline media still require their own checks.

@@ -81,6 +81,13 @@ class Platform:
         """Return serial-console options found in the platform's boot files."""
         return {}
 
+    def read_hardware(self, ctx: Context) -> dict[str, str]:
+        """Read platform-specific boot interface settings, when supported."""
+        return {}
+
+    def setup_hardware(self, ctx: Context) -> None:
+        raise Unsupported(f"{self.title}: hardware interfaces are not supported")
+
     def edit_kernel_cmdline(self, ctx: Context,
                             edit: Callable[[list[str]], list[str]]) -> None:
         """Stage an edit of the kernel command line tokens."""
