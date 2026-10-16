@@ -8,6 +8,9 @@ Supported boards: Raspberry Pi 4 and 5 (including Pi 400/500 and the
 Compute Modules) with Raspberry Pi OS Lite or Desktop. The core is
 platform-agnostic; other boards are added as platforms.
 
+The agreed implementation plan and outstanding board checks are tracked in
+[ROADMAP.md](ROADMAP.md).
+
 ## Installation
 
 ```sh
