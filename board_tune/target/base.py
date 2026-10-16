@@ -31,6 +31,10 @@ class Target:
         """Return the contents of a regular file, or None if it is missing."""
         raise NotImplementedError
 
+    def listdir(self, path: str) -> list[str]:
+        """Return sorted entry names, or an empty list for a missing directory."""
+        raise NotImplementedError
+
     def stat(self, path: str) -> Stat | None:
         """Return the attributes of path without following a final symlink."""
         raise NotImplementedError

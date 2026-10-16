@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
-from board_tune import systemd
+from board_tune import cmdline, systemd
 from board_tune.errors import Error, Unsupported
 from board_tune.registry import Board, Context, Platform
 
@@ -43,6 +44,74 @@ class RaspberryPi(Platform):
         if model.startswith("Raspberry Pi"):
             raise Unsupported(f"{target.description}: {model} is not supported")
         return None
+
+    def detect_offline_board(self, target):
+        # A stock image supports several models. Only our explicit, managed
+        # board filter identifies the model it was customized for.
+        filters = set()
+        for directory in BOOT_DIRS:
+            data = target.read(f"{directory}/config.txt")
+            if data is None:
+                continue
+            inside = False
+            for line in data.decode().splitlines():
+                if line.strip() == "# >>> board-tune: serial_console >>>":
+                    inside = True
+                elif line.strip() == "# <<< board-tune: serial_console <<<":
+                    inside = False
+                elif inside and line.strip() in ("[pi4]", "[pi5]"):
+                    filters.add(line.strip()[1:-1])
+        if len(filters) == 1:
+            return next(b for b in self.boards if b.filter in filters)
+        return None
+
+    def read_serial_console(self, ctx):
+        directory = next((d for d in BOOT_DIRS if ctx.plan.exists(f"{d}/config.txt")), None)
+        if directory is None:
+            return {}
+        tokens = (ctx.plan.read_text(f"{directory}/cmdline.txt") or "").split()
+        consoles = [cmdline.value(t) for t in tokens if cmdline.key(t) == "console"]
+        serials = [c for c in consoles
+                   if re.fullmatch(r"(?:serial|ttyAMA|ttyS)\d+", c.split(",")[0])]
+        if not serials:
+            return {"SERIAL_CONSOLE": "n"}
+        serial = serials[-1]
+        values = {"SERIAL_CONSOLE": "y",
+                  "SERIAL_CONSOLE_PRIMARY": "y" if consoles[-1] == serial else "n",
+                  "SERIAL_CONSOLE_VERBOSE": "n" if {"quiet", "splash"} & set(tokens) else "y"}
+        baud = re.match(r"\d+", serial.split(",", 1)[1]) if "," in serial else None
+        if baud:
+            values["SERIAL_CONSOLE_BAUD"] = baud.group()
+        if values["SERIAL_CONSOLE_VERBOSE"] == "y":
+            levels = [cmdline.value(t) for t in tokens if cmdline.key(t) == "loglevel"]
+            if levels and levels[-1].isdigit() and 1 <= int(levels[-1]) <= 8:
+                values["SERIAL_CONSOLE_LOGLEVEL"] = levels[-1]
+
+        active = True
+        lines = []
+        for raw in (ctx.plan.read_text(f"{directory}/config.txt") or "").splitlines():
+            line = raw.split("#", 1)[0].strip()
+            if line.startswith("["):
+                active = line in ("[all]", f"[{ctx.board.filter}]")
+            elif active and line:
+                lines.append(line)
+        params = dict(line.split("=", 1) for line in lines if "=" in line)
+        values["RPI_SERIAL_FIRMWARE_LOG"] = "y" if params.get("uart_2ndstage") == "1" else "n"
+        if ctx.board.id == "RPI4":
+            pl011 = any(line.split(",")[0] == "dtoverlay=disable-bt" for line in lines)
+            values["RPI4_SERIAL_PL011" if pl011 else "RPI4_SERIAL_MINI_UART"] = "y"
+        else:
+            gpio = any(any(param.split("=", 1)[0] == "uart0_console"
+                           and param.split("=", 1)[-1] not in ("off", "0", "false")
+                           for param in line.split("=", 1)[-1].split(","))
+                       for line in lines if line.startswith("dtparam="))
+            gpio = gpio or serial.split(",")[0] == "ttyAMA0"
+            values["RPI5_SERIAL_GPIO" if gpio else "RPI5_SERIAL_DEBUG"] = "y"
+        if any(line.startswith("include ") for line in lines):
+            ctx.plan.note("UART settings in config.txt include files are not imported")
+        if len(serials) > 1:
+            ctx.plan.note("multiple serial consoles found; the menu shows the last one")
+        return values
 
     def boot_dir(self, ctx: Context) -> str:
         """Where the boot partition is mounted: /boot/firmware since Bookworm."""

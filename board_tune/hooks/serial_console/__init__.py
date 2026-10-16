@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 
 from board_tune import accounts, cmdline, systemd
 from board_tune.errors import Error
@@ -22,6 +23,42 @@ class SerialConsole(Hook):
     title = "Serial console"
     symbol = "SERIAL_CONSOLE"
     order = 20
+
+    def read(self, ctx: Context) -> dict[str, str]:
+        values = ctx.platform.read_serial_console(ctx)
+        if values.get("SERIAL_CONSOLE") != "y":
+            return values
+        # Inspect the template and its drop-ins, without executing agetty.
+        paths = [systemd.find_unit(ctx.plan, "serial-getty@.service")]
+        directory = "/etc/systemd/system/serial-getty@.service.d"
+        paths += [f"{directory}/{name}" for name in ctx.target.listdir(directory)
+                  if name.endswith(".conf")]
+        start = ""
+        for path in paths:
+            if path is None:
+                continue
+            section = ""
+            for raw in (ctx.plan.read_text(path) or "").splitlines():
+                line = raw.strip()
+                if line.startswith("["):
+                    section = line
+                elif section == "[Service]" and line.startswith("ExecStart="):
+                    start = line.partition("=")[2]
+        values["SERIAL_CONSOLE_AUTOLOGIN"] = "n"
+        try:
+            argv = shlex.split(start)
+        except ValueError:
+            ctx.plan.note("serial getty command could not be imported")
+            return values
+        for i, arg in enumerate(argv):
+            if arg.startswith("--autologin="):
+                user = arg.partition("=")[2]
+            elif arg in ("--autologin", "-a") and i + 1 < len(argv):
+                user = argv[i + 1]
+            else:
+                continue
+            values.update(SERIAL_CONSOLE_AUTOLOGIN="y", SERIAL_CONSOLE_AUTOLOGIN_USER=user)
+        return values
 
     def plan(self, ctx: Context) -> None:
         cfg = ctx.config

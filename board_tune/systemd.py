@@ -49,6 +49,14 @@ def _install_links(plan: Plan, unit: str, path: str) -> list[str]:
     return links
 
 
+def is_enabled(plan: Plan, unit: str) -> bool:
+    """Check installed enablement links without running systemctl."""
+    path = find_unit(plan, unit)
+    if path is None or plan.readlink(f"{SYSTEM_DIR}/{unit}") == "/dev/null":
+        return False
+    return any(plan.readlink(link) is not None for link in _install_links(plan, unit, path))
+
+
 def enable(plan: Plan, unit: str) -> list[str]:
     """Stage enabling unit; return the symlinks involved."""
     path = find_unit(plan, unit)

@@ -93,3 +93,24 @@ def test_open_directory_target(rootfs):
 def test_open_missing_path(tmp_path):
     with pytest.raises(Error):
         open_target(str(tmp_path / "missing"))
+
+
+def test_listdir_handles_hidden_names_and_newlines(target, rootfs):
+    directory = rootfs / "etc/listing"
+    directory.mkdir()
+    names = [".hidden", "normal", "a\nb", "broken"]
+    for name in names[:-1]:
+        (directory / name).write_text("x")
+    (directory / "broken").symlink_to("missing")
+    assert target.listdir("/etc/listing") == sorted(names)
+    assert target.listdir("/etc/missing") == []
+    with pytest.raises(Error):
+        target.listdir("/etc/passwd")
+
+
+def test_listdir_absolute_symlink_stays_inside_target(target, rootfs, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "host-only").write_text("x")
+    (rootfs / "etc/listing").symlink_to(str(outside))
+    assert target.listdir("/etc/listing") == []

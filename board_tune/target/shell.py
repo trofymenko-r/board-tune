@@ -15,6 +15,15 @@ if [ -f "$1" ]; then exec cat -- "$1"; fi
 if [ -e "$1" ]; then echo "not a regular file" >&2; exit 2; fi
 exit 3
 """
+_LISTDIR = r"""
+[ -e "$1" ] || exit 3
+[ -d "$1" ] || { echo "not a directory" >&2; exit 2; }
+[ -r "$1" ] && [ -x "$1" ] || { echo "directory is not readable" >&2; exit 2; }
+for p in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+    [ -e "$p" ] || [ -L "$p" ] || continue
+    printf '%s\0' "${p##*/}"
+done
+"""
 _STAT = """
 [ -e "$1" ] || [ -L "$1" ] || exit 3
 exec stat -c '%a %u %g' -- "$1"
@@ -88,6 +97,13 @@ class ShellTarget(Target):
         if proc.returncode == 3:
             return None
         return self._check(proc, f"cannot read {path}").stdout
+
+    def listdir(self, path):
+        proc = self._sh(_LISTDIR, self._path(path))
+        if proc.returncode == 3:
+            return []
+        data = self._check(proc, f"cannot list {path}").stdout
+        return sorted(name.decode() for name in data.split(b"\0") if name)
 
     def stat(self, path):
         proc = self._sh(_STAT, self._path(path, follow=False))

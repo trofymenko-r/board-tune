@@ -13,6 +13,7 @@ platform-agnostic; other boards are added as platforms.
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e .
+source .venv/bin/activate
 ```
 
 This installs the `board-tune` command. The host must run Linux;
@@ -27,12 +28,48 @@ board-tune [TARGET] [--load FILE]... [--set SYMBOL=VALUE]... [--save FILE]
 
 | Command | Effect |
 |---|---|
-| `board-tune /dev/sdb` | Menu, then show the changes and apply them after confirmation |
+| `board-tune /dev/sdb` | Read current settings, open the menu, then show and confirm changes |
+| `board-tune pi@192.168.1.50` | Read current settings and detect the board over SSH, then open the menu |
 | `board-tune pi@192.168.1.50 --load rpi5.cfg` | Batch mode: no menu, invalid settings are errors |
-| `board-tune pi@192.168.1.50 --load rpi5.cfg --menu` | Menu on top of the loaded profile |
+| `board-tune pi@192.168.1.50 --load rpi5.cfg --menu` | Menu with current settings overridden by the profile |
 | `board-tune --save rpi5.cfg` | Menu without a target: only save a profile |
 | `board-tune --load base.cfg --load eth.cfg --save lab.cfg` | Merge profiles into a new one |
 | `board-tune raspios.img --load rpi5.cfg --dry-run` | Show what would change in an image |
+
+With a target, the menu starts from settings read from the board's files:
+serial console and UART, Ethernet profiles, and global SSH settings.
+`--load` profiles override those values, followed by `--set`. Batch mode
+without `--menu` continues to apply only the supplied profile and defaults.
+An unchanged hook is left untouched when exiting the target's menu, so
+viewing existing settings does not normalize or rewrite its files.
+
+A live board's model is detected from its device tree. A stock offline
+image may support both Pi 4 and Pi 5 and cannot identify its intended
+board. Check the Board selection, or provide `--set BOARD_RPI5=y` before
+opening the menu. Media with a board-tune serial-console block can recover
+the model from that block.
+
+The menu shows stored configuration, not runtime information such as a
+DHCP lease or whether sshd is currently running. It imports one Ethernet
+profile and global SSH directives (including `Include` files); SSH `Match`
+rules and UART settings in firmware include files are not imported.
+Unrecognized settings keep their menu defaults and are left untouched
+unless that hook's options are edited. A local source path for existing
+`authorized_keys` cannot be recovered and remains empty.
+
+The menu uses a compact gray dialog on a blue background, with the same
+checkboxes, choices and button layout as kernel menuconfig. The top level
+contains Board, Serial console, Ethernet and SSH server. Each feature has
+an explicit Configure checkbox; advanced boot and network options are in
+submenus, and public keys have their own SSH submenu.
+
+Use Up/Down to select an item, Enter to open or edit it, Space (or Y/N) to
+change a checkbox, and Esc to return. Tab or Left/Right selects the bottom
+buttons. Help shows a short explanation of the selected option. Save keeps
+settings for the current session; Exit continues to the change preview.
+Load imports a profile without changing that file. To export a profile,
+use `--save FILE`. Dialogs resize with the terminal (minimum 60 columns by
+14 rows). `MENUCONFIG_STYLE` can override the default colors.
 
 Before anything is written, board-tune shows every file it is about to
 create, modify or remove, with a diff.
@@ -79,8 +116,8 @@ silently dropped.
 
 ## Hooks
 
-A hook whose menu entry is disabled leaves the target untouched. An
-enabled hook fully manages the files it owns; for example, turning off
+A hook whose menu entry is disabled leaves the target untouched. When
+applied, an enabled hook fully manages the files it owns; for example, turning off
 autologin removes the autologin drop-in again.
 
 ### Serial console (`SERIAL_CONSOLE`)
@@ -129,6 +166,12 @@ platforms/<name>/hooks/<hook>.Kconfig   board options shown in a hook's menu
 Besides the built-in ones in `board_tune/`, they are loaded from the
 directories listed in `BOARD_TUNE_PATH` (colon-separated, each with
 `hooks/` and/or `platforms/` subdirectories).
+
+A hook can implement `read(ctx)` to return a mapping of Kconfig symbol
+names to current string values (`"y"`/`"n"` for booleans), without staging
+changes. The default returns nothing, preserving existing extensions.
+Platforms can implement `detect_offline_board(target)` and
+`read_serial_console(ctx)` for boot-media detection and serial readback.
 
 A hook's `plan(ctx)` reads and stages changes through `ctx.plan`
 (`read`, `write`, `mkdir`, `symlink`, `remove`, `command`, `note`) and

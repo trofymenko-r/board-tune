@@ -7,6 +7,7 @@ import os
 import shlex
 import sys
 import tempfile
+from contextlib import ExitStack, nullcontext
 
 from board_tune import __version__
 from board_tune.errors import Error
@@ -19,7 +20,8 @@ EPILOG = """\
 Without --load the configuration menu opens; --load switches to batch
 mode, where invalid settings are errors. TARGET is [user@]host for a
 running board, or a block device, disk image or root directory for
-offline customization. Without TARGET the configuration is only
+offline customization. With TARGET, the menu starts from its current
+settings. Without TARGET the configuration is only
 edited, validated or saved.
 """
 
@@ -61,7 +63,8 @@ def _require_tty(what: str) -> None:
         raise Error(f"{what} needs a terminal")
 
 
-def build_plan(registry: Registry, config: Config, target: Target) -> Plan:
+def build_plan(registry: Registry, config: Config, target: Target,
+               skip_hooks: set[str] | None = None) -> Plan:
     platform, board = registry.board(config)
     if target.live:
         detected = platform.detect_board(target)
@@ -71,7 +74,7 @@ def build_plan(registry: Registry, config: Config, target: Target) -> Plan:
     plan = Plan(target)
     ctx = Context(plan, config, platform, board)
     for hook in registry.hooks:
-        if config.enabled(hook.symbol):
+        if config.enabled(hook.symbol) and (not skip_hooks or hook.name not in skip_hooks):
             hook.plan(ctx)
     return plan
 
@@ -105,9 +108,10 @@ def _confirm(question: str) -> bool:
     return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
 
 
-def apply(args: argparse.Namespace, registry: Registry, config: Config) -> int:
-    with open_target(args.target) as target:
-        plan = build_plan(registry, config, target)
+def apply(args: argparse.Namespace, registry: Registry, config: Config,
+          target: Target | None = None, skip_hooks: set[str] | None = None) -> int:
+    with (nullcontext(target) if target is not None else open_target(args.target)) as target:
+        plan = build_plan(registry, config, target, skip_hooks)
         changes = plan.changes()
         _, board = registry.board(config)
         print(f"Target: {target.description}, {board.title}")
@@ -129,16 +133,35 @@ def apply(args: argparse.Namespace, registry: Registry, config: Config) -> int:
 
 def run(args: argparse.Namespace) -> int:
     registry = Registry.load()
-    with tempfile.TemporaryDirectory(prefix="board-tune-") as workdir:
+    interactive = args.menu or not args.load
+    if interactive:
+        _require_tty("the configuration menu (use --load for batch mode)")
+    with tempfile.TemporaryDirectory(prefix="board-tune-") as workdir, ExitStack() as targets:
         conf = Configuration(registry, workdir)
         for path in args.load:
             conf.load(path)
         for assignment in args.set:
             conf.set(assignment)
+        target = None
+        baseline = {}
+        if interactive and args.target:
+            # For an ambiguous image, an explicit board choice determines
+            # which conditional boot settings to read.
+            _, requested_board = registry.board(conf.config)
+            hint = (requested_board if conf.kconf.syms[f"BOARD_{requested_board.id}"].user_value == 2
+                    else None)
+            conf = Configuration(registry, workdir)
+            target = targets.enter_context(open_target(args.target))
+            print(f"Reading current settings from {target.description}...")
+            for note in conf.read_target(registry, target, hint):
+                _warn(note)
+            baseline = {hook.name: conf.hook_values(registry, hook) for hook in registry.hooks}
+            for path in args.load:
+                conf.load(path)
+            for assignment in args.set:
+                conf.set(assignment)
 
-        interactive = args.menu or not args.load
         if interactive:
-            _require_tty("the configuration menu (use --load for batch mode)")
             for problem in conf.problems():
                 _warn(problem)
             if not conf.menu():
@@ -152,7 +175,9 @@ def run(args: argparse.Namespace) -> int:
         if args.save:
             print(conf.save(args.save))
         if args.target:
-            return apply(args, registry, conf.config)
+            unchanged = {hook.name for hook in registry.hooks
+                         if baseline.get(hook.name) == conf.hook_values(registry, hook)}
+            return apply(args, registry, conf.config, target, unchanged)
         if not args.save:
             print("No target given, nothing applied." if interactive
                   else "Configuration is valid.")

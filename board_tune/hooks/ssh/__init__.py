@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import fnmatch
 import os
+import posixpath
 import re
+import shlex
 
 from board_tune import accounts, systemd
 from board_tune.errors import Error
@@ -30,10 +33,75 @@ def _choice(cfg, values: dict[str, str]) -> str | None:
     return next((v for sym, v in values.items() if cfg.enabled(sym)), None)
 
 
+def _include_paths(target, pattern: str) -> list[str]:
+    if not pattern.startswith("/"):
+        pattern = "/etc/ssh/" + pattern
+    paths = [""]
+    for part in posixpath.normpath(pattern).split("/")[1:]:
+        if any(c in part for c in "*?["):
+            paths = [f"{path}/{name}" for path in paths
+                     for name in target.listdir(path or "/") if fnmatch.fnmatchcase(name, part)]
+        else:
+            paths = [f"{path}/{part}" for path in paths]
+    return sorted(paths)
+
+
+def _sshd_values(ctx) -> dict[str, str]:
+    values = {}
+    seen = set()
+
+    def visit(path, depth=0):
+        if path in seen or depth > 16:
+            return False
+        seen.add(path)
+        for raw in (ctx.plan.read_text(path) or "").splitlines():
+            try:
+                args = shlex.split(raw, comments=True)
+            except ValueError:
+                ctx.plan.note(f"could not import an SSH directive from {path}")
+                continue
+            if len(args) < 2:
+                continue
+            key = args[0].lower()
+            if key == "match":
+                ctx.plan.note("SSH menu shows global settings; Match rules are not imported")
+                return True
+            if key == "include":
+                for pattern in args[1:]:
+                    for included in _include_paths(ctx.target, pattern):
+                        if visit(included, depth + 1):
+                            return True
+            else:
+                values.setdefault(key, args[1].lower())
+        return False
+
+    visit(SSHD_CONFIG)
+    return values
+
+
 class SSHServer(Hook):
     title = "SSH server"
     symbol = "SSH"
     order = 40
+
+    def read(self, ctx: Context) -> dict[str, str]:
+        unit = next((u for u in UNITS if systemd.find_unit(ctx.plan, u)), None)
+        if unit is None:
+            return {"SSH": "n"}
+        enabled = not ctx.plan.exists(NOT_TO_BE_RUN) and systemd.is_enabled(ctx.plan, unit)
+        values = {"SSH": "y", "SSH_ENABLE": "y" if enabled else "n"}
+        options = _sshd_values(ctx)
+        port = options.get("port", "22")
+        if port.isdigit() and 1 <= int(port) <= 65535:
+            values["SSH_PORT"] = port
+        for choices, key in ((ROOT_LOGIN, "permitrootlogin"), (PASSWORD_AUTH, "passwordauthentication")):
+            value = options.get(key)
+            if value == "without-password":
+                value = "prohibit-password"
+            for symbol, wanted in choices.items():
+                if value == wanted:
+                    values[symbol] = "y"
+        return values
 
     def plan(self, ctx: Context) -> None:
         unit = next((u for u in UNITS if systemd.find_unit(ctx.plan, u)), None)

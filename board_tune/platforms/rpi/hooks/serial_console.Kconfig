@@ -10,10 +10,10 @@ choice
 	  PL011 unless it is disabled.
 
 config RPI4_SERIAL_MINI_UART
-	bool "Mini UART on GPIO 14/15, Bluetooth kept"
+	bool "Mini UART (GPIO 14/15)"
 
 config RPI4_SERIAL_PL011
-	bool "PL011 UART on GPIO 14/15, Bluetooth disabled"
+	bool "PL011 (GPIO 14/15, Bluetooth off)"
 	help
 	  Adds dtoverlay=disable-bt and disables the hciuart service.
 
@@ -25,12 +25,12 @@ choice
 	default RPI5_SERIAL_DEBUG
 
 config RPI5_SERIAL_DEBUG
-	bool "Debug UART connector"
+	bool "Debug connector"
 	help
 	  The 3-pin JST connector between the HDMI ports (ttyAMA10).
 
 config RPI5_SERIAL_GPIO
-	bool "UART0 on GPIO 14/15"
+	bool "GPIO 14/15"
 	help
 	  Adds dtparam=uart0_console, which moves the serial0 alias and
 	  thus the console to UART0 (ttyAMA0).
@@ -38,7 +38,7 @@ config RPI5_SERIAL_GPIO
 endchoice
 
 config RPI_SERIAL_FIRMWARE_LOG
-	bool "Firmware diagnostic output"
+	bool "Firmware boot log"
 	help
 	  Adds uart_2ndstage=1 so the firmware logs to the UART before the
 	  kernel starts. Output of the bootloader itself is controlled by

@@ -9,7 +9,10 @@ import kconfiglib
 from kconfiglib import BOOL, TRI_TO_STR, TRISTATE
 
 from board_tune.errors import Error
-from board_tune.registry import Registry
+from board_tune.menu import kernel_style
+from board_tune.plan import Plan
+from board_tune.registry import Board, Context, Hook, Registry
+from board_tune.target import Target
 
 HEADER = "# board-tune configuration\n"
 
@@ -37,11 +40,14 @@ def generate_kconfig(registry: Registry) -> str:
         if platform.kconfig():
             out.append(f"source {_quote(platform.kconfig())}")
     for hook in registry.hooks:
+        title = hook.title.replace('"', '\"')
+        out.append(f'menu "{title}"')
         if hook.kconfig():
             out.append(f"source {_quote(hook.kconfig())}")
         for platform in registry.platforms:
             if platform.hook_kconfig(hook.name):
                 out.append(f"source {_quote(platform.hook_kconfig(hook.name))}")
+        out.append("endmenu")
     return "\n".join(out) + "\n"
 
 
@@ -98,6 +104,38 @@ class Configuration:
         self._seen_warnings = len(self.kconf.warnings)
         self.config = Config(self.kconf)
 
+    def read_target(self, registry: Registry, target: Target,
+                    board_hint: Board | None = None) -> list[str]:
+        """Seed the menu from target files; explicit profiles are loaded afterwards."""
+        plan = Plan(target)
+        for platform in registry.platforms:
+            board = (platform.detect_board(target) if target.live
+                     else platform.detect_offline_board(target))
+            if board is not None:
+                self.set(f"BOARD_{board.id}=y")
+                break
+        else:
+            if board_hint is not None:
+                self.set(f"BOARD_{board_hint.id}=y")
+            else:
+                plan.note("board model could not be determined; check the Board selection")
+        platform, board = registry.board(self.config)
+        ctx = Context(plan, self.config, platform, board)
+        for hook in registry.hooks:
+            for name, value in hook.read(ctx).items():
+                self.set(f"{name}={value}")
+        return plan.notes
+
+    def hook_values(self, registry: Registry, hook: Hook) -> dict[str, str]:
+        """Effective options defined by a hook and its platform fragments."""
+        fragments = [hook.kconfig()] + [platform.hook_kconfig(hook.name)
+                                        for platform in registry.platforms]
+        paths = {path.resolve() for path in fragments if path}
+        return {sym.name: sym.str_value for sym in self.kconf.unique_defined_syms
+                if sym.name == hook.symbol or any(
+                    Path(self.kconf.srctree, node.filename).resolve() in paths
+                    for node in sym.nodes)}
+
     def load(self, path: str) -> None:
         """Merge a configuration fragment over the current values."""
         if not os.path.isfile(path):
@@ -149,7 +187,8 @@ class Configuration:
         old_env = os.environ.get("KCONFIG_CONFIG")
         os.environ["KCONFIG_CONFIG"] = path
         try:
-            menuconfig.menuconfig(self.kconf)
+            with kernel_style(menuconfig):
+                menuconfig.menuconfig(self.kconf)
         finally:
             if old_env is None:
                 del os.environ["KCONFIG_CONFIG"]

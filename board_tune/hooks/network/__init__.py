@@ -94,10 +94,111 @@ def networkd_file(s: Settings) -> tuple[str, str]:
     return f"{NETWORKD_DIR}/10-board-tune-{s.iface}.network", "\n".join(lines) + "\n"
 
 
+def _sections(text: str) -> dict[str, dict[str, list[str]]]:
+    """Read simple keyfiles, keeping repeated networkd Address/DNS entries."""
+    out = {}
+    section = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = out.setdefault(line[1:-1], {})
+        elif section is not None and "=" in line:
+            key, value = line.split("=", 1)
+            section.setdefault(key.strip(), []).append(value.strip())
+    return out
+
+
+def _first(section, key, default=""):
+    return section.get(key, [default])[0]
+
+
+def _network_values(iface, method, address="", gateway="", dns=""):
+    if not _IFACE.fullmatch(iface) or method not in ("auto", "manual"):
+        return None
+    values = {"NETWORK": "y", "NETWORK_IFACE": iface,
+              "NETWORK_STATIC" if method == "manual" else "NETWORK_DHCP": "y"}
+    if method == "manual":
+        address, _, legacy_gateway = address.partition(",")
+        try:
+            if "/" not in address:
+                return None
+            address = str(ipaddress.IPv4Interface(address))
+            gateway = gateway or legacy_gateway
+            if gateway:
+                gateway = str(ipaddress.IPv4Address(gateway))
+            servers = [str(ipaddress.IPv4Address(d)) for d in dns.replace(";", " ").split()]
+        except ValueError:
+            return None
+        values.update(NETWORK_ADDRESS=address, NETWORK_GATEWAY=gateway,
+                      NETWORK_DNS=" ".join(servers))
+    return values
+
+
 class WiredNetwork(Hook):
-    title = "Wired network"
+    title = "Ethernet"
     symbol = "NETWORK"
     order = 30
+
+    def read(self, ctx: Context) -> dict[str, str]:
+        candidates = []
+        preferred = ctx.config.str("NETWORK_IFACE") or "eth0"
+        if ctx.plan.exists(NM_DIR):
+            for directory in (f"{NM_DIR}/system-connections", "/run/NetworkManager/system-connections"):
+                for name in ctx.target.listdir(directory):
+                    if not name.endswith(".nmconnection"):
+                        continue
+                    sections = _sections(ctx.plan.read_text(f"{directory}/{name}") or "")
+                    connection = sections.get("connection", {})
+                    if _first(connection, "type") not in ("ethernet", "802-3-ethernet"):
+                        continue
+                    if _first(connection, "autoconnect").lower() in ("false", "no", "0"):
+                        continue
+                    ipv4 = sections.get("ipv4", {})
+                    iface = _first(connection, "interface-name", preferred)
+                    if "interface-name" not in connection:
+                        ctx.plan.note(f"Ethernet profile {name} has no interface binding; showing {iface}")
+                    values = _network_values(iface, _first(ipv4, "method"),
+                                             _first(ipv4, "address1"), _first(ipv4, "gateway"),
+                                             _first(ipv4, "dns"))
+                    if values is None:
+                        ctx.plan.note(f"network profile {name} cannot be represented in the menu")
+                        continue
+                    values["NETWORK_BACKEND_NM"] = "y"
+                    try:
+                        priority = int(_first(connection, "autoconnect-priority", "0"))
+                    except ValueError:
+                        priority = 0
+                    candidates.append(((iface != preferred, -priority, name), values))
+        else:
+            files = {}
+            for directory in ("/usr/lib/systemd/network", "/run/systemd/network", NETWORKD_DIR):
+                for name in ctx.target.listdir(directory):
+                    if name.endswith(".network"):
+                        files[name] = f"{directory}/{name}"
+            for name, path in sorted(files.items()):
+                if ctx.plan.readlink(path) == "/dev/null":
+                    continue
+                sections = _sections(ctx.plan.read_text(path) or "")
+                match = sections.get("Match", {})
+                network = sections.get("Network", {})
+                iface = _first(match, "Name")
+                addresses = network.get("Address", [])
+                dhcp = _first(network, "DHCP").lower() in ("yes", "true", "ipv4", "1")
+                values = _network_values(iface, "auto" if dhcp else "manual",
+                                         addresses[0] if addresses else "",
+                                         _first(network, "Gateway"), " ".join(network.get("DNS", [])))
+                if values is None:
+                    ctx.plan.note(f"network profile {name} cannot be represented in the menu")
+                    continue
+                values["NETWORK_BACKEND_NETWORKD"] = "y"
+                candidates.append(((iface != preferred, 0, name), values))
+        if not candidates:
+            return {"NETWORK": "n"}
+        if len(candidates) > 1:
+            ctx.plan.note("multiple Ethernet profiles found; the menu shows one interface/profile")
+        return min(candidates, key=lambda item: item[0])[1]
 
     def plan(self, ctx: Context) -> None:
         s = settings(ctx.config)

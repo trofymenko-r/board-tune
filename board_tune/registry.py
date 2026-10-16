@@ -73,6 +73,14 @@ class Platform:
         """Identify the board of a live target, if possible."""
         return None
 
+    def detect_offline_board(self, target: Target) -> Board | None:
+        """Identify a board from unambiguous boot-media metadata, if present."""
+        return None
+
+    def read_serial_console(self, ctx: Context) -> dict[str, str]:
+        """Return serial-console options found in the platform's boot files."""
+        return {}
+
     def edit_kernel_cmdline(self, ctx: Context,
                             edit: Callable[[list[str]], list[str]]) -> None:
         """Stage an edit of the kernel command line tokens."""
@@ -101,6 +109,10 @@ class Hook:
     def kconfig(self) -> Path | None:
         path = self.path / "Kconfig"
         return path if path.is_file() else None
+
+    def read(self, ctx: Context) -> dict[str, str]:
+        """Read current options without staging changes; optional for extensions."""
+        return {}
 
     def plan(self, ctx: Context) -> None:
         raise NotImplementedError
