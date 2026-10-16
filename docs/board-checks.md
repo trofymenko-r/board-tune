@@ -1,7 +1,8 @@
 # Physical-board checks
 
-These checks are pending. Automated rootfs tests, native profile parsing and
-unit validation do not establish real login, radio or hardware behavior.
+Checks without a recorded result below are pending. Automated rootfs tests,
+native profile parsing and unit validation do not establish real login,
+radio or hardware behavior.
 Use a test installation, keep the current administrator session open, and
 record the board model and Raspberry Pi OS release with the result.
 
@@ -97,5 +98,27 @@ file restoration. Account deletion is outside the current hook's scope.
 
 ## Results
 
-No physical-board results have been reported yet. Add model, OS version,
-transport/media, tested stages and observed outcomes here when available.
+### 2026-10-17: Users over SSH on Raspberry Pi 5
+
+Raspberry Pi 5 Model B Rev 1.1, Debian 12 (bookworm), aarch64,
+kernel 6.12.96+rpt-rpi-2712; connected as the existing administrator `mipi`.
+
+- Dry-run planned a new `btcheck` account and left it absent.
+- The first application found a real compatibility bug: Debian useradd
+  rejects `-K CREATE_MAIL_SPOOL=no`, which belongs to /etc/default/useradd,
+  rather than login.defs. File rollback ran; the native groupadd effect
+  remained. After removing that override, retry reused the group and succeeded.
+  Mail creation now follows the target's useradd defaults.
+- Created `btcheck` with UID/GID 1001, /bin/bash, and a locked password.
+  A separate SSH connection succeeded with password and keyboard-interactive
+  authentication explicitly disabled, proving public-key access.
+- Home, .ssh and authorized_keys had modes 750, 700 and 600 respectively,
+  all owned by 1001:1001. Passwordless `sudo -n true` succeeded.
+- Reapplying the same profile returned `Nothing to change`.
+- A fresh connection as `mipi` still had its original groups and working sudo.
+
+The `btcheck` account, its authorized public key and its managed passwordless
+sudo rule remain on the test board for further checks. The successful file
+backup is `20261016T222616Z-f897b11cadec` (board UTC clock); restoring it does
+not remove the native user/group. Password-hash login, group changes, offline
+boot, System settings and Wi-Fi association were not exercised in this run.

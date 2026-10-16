@@ -141,10 +141,12 @@ class Users(Hook):
             days = str(int(datetime.now(timezone.utc).timestamp()) // 86400)
             shadow.append([name, "!", days, "0", "99999", "7", "", "", ""])
             if ctx.target.live:
+                # CREATE_MAIL_SPOOL belongs to /etc/default/useradd, not
+                # login.defs: -K rejects it on Debian. Keep target defaults.
                 plan.command(["useradd", "--uid", str(uid), "--gid", str(gid),
                               "--home-dir", home, "--shell", shell, "--no-create-home",
-                              "--no-log-init", "--key", "CREATE_MAIL_SPOOL=no",
-                              "--key", "SUB_UID_COUNT=0", "--key", "SUB_GID_COUNT=0",
+                              "--no-log-init", "--key", "SUB_UID_COUNT=0",
+                              "--key", "SUB_GID_COUNT=0",
                               "--", name], before_files=True)
             plan.mkdir(home, 0o750, (uid, gid))
             if not ctx.target.chown:
