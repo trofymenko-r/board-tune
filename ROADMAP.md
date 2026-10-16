@@ -24,7 +24,7 @@ be inferred from the existing design.
 |---|---|---|
 | 0 | File backups and recovery foundations for subsequent changes | Implemented; 111 tests pass, 1 root-only test skipped |
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented with hash-file input; physical login/sudo check pending |
-| 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Pending |
+| 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Pending |
 | 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
@@ -87,3 +87,13 @@ Owner input requested: run the login/SSH-key/sudo smoke test on a test board,
 or provide its SSH destination. Never exercise user changes on an unspecified
 board. Stage 2 (identity/localisation/time) can proceed independently while
 that check is pending.
+
+## Stage 2 verification and next action
+
+Hostname/hosts preservation, timezone links, locale generation scheduling,
+keyboard configuration and timesyncd keep/enable/disable pass tests on
+temporary rootfs targets. Live activation commands are tested with a fake
+transport. First boot locale generation, console keyboard application and
+actual NTP synchronisation still need board verification. Locale data,
+locales/keyboard packages and the NTP service are not installed by this hook.
+The next independent functional stage is Wi-Fi.

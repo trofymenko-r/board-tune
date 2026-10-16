@@ -62,7 +62,7 @@ unless that hook's options are edited. A local source path for existing
 
 The menu uses a compact gray dialog on a blue background, with the same
 checkboxes, choices and button layout as kernel menuconfig. The top level
-contains Board, Users, Serial console, Ethernet and SSH server. Each feature has
+contains Board, Users, Serial console, Ethernet, SSH server and System. Each feature has
 an explicit Configure checkbox; advanced boot and network options are in
 submenus, and public keys have their own SSH submenu.
 
@@ -216,6 +216,35 @@ password authentication in an `sshd_config.d` drop-in. It can also add
 public keys from a file on the host to a user's `authorized_keys`. On
 live boards the configuration is checked with `sshd -t` before the
 server is reloaded.
+
+### System (`SYSTEM`)
+
+Hostname (including its 127.0.1.1 hosts entry), installed IANA timezone,
+UTF-8 default language (LANG), keyboard layouts/variants/options, and
+systemd-timesyncd enable/disable/custom servers are configurable. Empty
+identity/localisation fields keep existing values; NTP has an explicit
+Keep choice. Time synchronisation disablement masks that service; no other
+NTP daemon is managed.
+
+```config
+CONFIG_SYSTEM=y
+CONFIG_SYSTEM_HOSTNAME="board-01"
+CONFIG_SYSTEM_TIMEZONE="Europe/Kyiv"
+CONFIG_SYSTEM_LOCALE="uk_UA.UTF-8"
+CONFIG_SYSTEM_KEYBOARD_LAYOUT="us,ua"
+CONFIG_SYSTEM_KEYBOARD_OPTIONS="grp:alt_shift_toggle"
+CONFIG_SYSTEM_NTP_ENABLE=y
+CONFIG_SYSTEM_NTP_SERVERS="time.example.org"
+```
+
+Timezone data and the locales package must already be installed. Other
+LC_* overrides and keyboard model settings are preserved. Locale generation
+runs natively on live boards; offline media gets a conditional one-shot
+service that generates locales on the next boot. No target executable is
+run while editing offline media. Default language affects subsequent
+logins; keyboard changes are deferred until reboot/console reconfiguration.
+Hostname and NTP changes are activated on live targets. The initial NTP
+backend is systemd-timesyncd only; chrony and ntpd are left alone.
 
 ## Extending
 
