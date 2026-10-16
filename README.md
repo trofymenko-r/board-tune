@@ -77,6 +77,28 @@ use `--save FILE`. Dialogs resize with the terminal (minimum 60 columns by
 Before anything is written, board-tune shows every file it is about to
 create, modify or remove, with a diff.
 
+### Backups and recovery
+
+Each application stores a private file snapshot under
+`/var/backups/board-tune` on the target. Backups include original file
+contents, permissions, ownership, symlinks and the absence of new paths.
+Sensitive diffs are hidden; backup directories are mode 0700 and their
+manifests are mode 0600. Preview and aborted confirmation create no backup.
+
+```sh
+board-tune pi@192.168.1.50 --list-backups
+board-tune pi@192.168.1.50 --restore BACKUP_ID --dry-run
+board-tune pi@192.168.1.50 --restore BACKUP_ID
+```
+
+A write or command failure triggers restoration of the snapshotted files.
+A manual restore also backs up the current files first. This is file
+recovery: runtime effects of commands, service state, concurrent changes
+and automatically created parent directories are not a filesystem
+transaction. Reload affected services or reboot after manual recovery.
+If recovery fails, its backup ID and errors are reported for manual action.
+Backups are retained until the operator removes them.
+
 ### Targets
 
 - **`[user@]host`**: a running board, reached with the system `ssh`

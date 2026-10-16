@@ -104,5 +104,8 @@ class LocalTarget(ShellTarget):
             raise ValueError(f"target paths must be absolute: {path}")
         return self._map(self._resolve(path, follow))
 
-    def run(self, argv):
+    def realpath(self, path):
+        return self._resolve(path)
+
+    def run(self, argv, input=None):
         raise Unsupported(f"{self.description}: cannot run commands on an offline target")

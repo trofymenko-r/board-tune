@@ -10,6 +10,7 @@ class Stat:
     mode: int
     uid: int
     gid: int
+    kind: str = "file"
 
 
 class Target:
@@ -66,7 +67,18 @@ class Target:
     def remove(self, path: str) -> None:
         raise NotImplementedError
 
-    def run(self, argv: list[str]) -> str:
+    def realpath(self, path: str) -> str:
+        """Resolve a path inside the target root."""
+        raise NotImplementedError
+
+    def set_attrs(self, path: str, mode: int, owner: tuple[int, int]) -> None:
+        raise NotImplementedError
+
+    def rmdir(self, path: str) -> None:
+        """Remove an empty directory only."""
+        raise NotImplementedError
+
+    def run(self, argv: list[str], input: bytes | None = None) -> str:
         """Run a command on a live target and return its output."""
         raise NotImplementedError
 

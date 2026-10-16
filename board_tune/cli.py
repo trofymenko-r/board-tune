@@ -10,6 +10,7 @@ import tempfile
 from contextlib import ExitStack, nullcontext
 
 from board_tune import __version__
+from board_tune.backup import Backup, DIRECTORY as BACKUP_DIRECTORY
 from board_tune.errors import Error
 from board_tune.kconfig import Config, Configuration
 from board_tune.plan import Change, Plan
@@ -44,6 +45,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
                    help="show the changes without applying them")
     p.add_argument("-y", "--yes", action="store_true",
                    help="apply without asking for confirmation")
+    recovery = p.add_mutually_exclusive_group()
+    recovery.add_argument("--list-backups", action="store_true", help="list target file backups")
+    recovery.add_argument("--restore", metavar="ID", help="restore files from a target backup")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p.parse_args(argv)
 
@@ -127,11 +131,38 @@ def apply(args: argparse.Namespace, registry: Registry, config: Config,
             print("Aborted.")
             return 1
         plan.apply(changes)
+        if plan.backup:
+            print(f"Backup: {plan.backup.id}")
         print("Done.")
     return 0
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.list_backups or args.restore:
+        if not args.target:
+            raise Error("backup operations require TARGET")
+        if args.load or args.set or args.save or args.menu:
+            raise Error("backup operations cannot be combined with configuration options")
+        with open_target(args.target) as target:
+            if args.list_backups:
+                for name in target.listdir(BACKUP_DIRECTORY):
+                    if name.endswith(".json"):
+                        print(name[:-5])
+                return 0
+            backup = Backup.load(target, args.restore)
+            print(f"Restore backup {backup.id} on {target.description}:")
+            for path in backup.entries:
+                print(f"  restore  {path}")
+            if args.dry_run:
+                return 0
+            if not args.yes and not _confirm("Restore these files?"):
+                return 1
+            # A manual restore can itself be undone.
+            safety = Backup.create(target, list(backup.entries))
+            backup.restore()
+            print(f"Restored. Pre-restore backup: {safety.id}")
+            print("Reboot or reload affected services to activate restored settings.")
+            return 0
     registry = Registry.load()
     interactive = args.menu or not args.load
     if interactive:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 import subprocess
 
 from board_tune.errors import Error
@@ -26,7 +27,7 @@ done
 """
 _STAT = """
 [ -e "$1" ] || [ -L "$1" ] || exit 3
-exec stat -c '%a %u %g' -- "$1"
+exec stat -c '%a %u %g %f' -- "$1"
 """
 _EXISTS = '[ -e "$1" ]'
 _READLINK = '[ -L "$1" ] || exit 3; exec readlink -- "$1"'
@@ -109,8 +110,11 @@ class ShellTarget(Target):
         proc = self._sh(_STAT, self._path(path, follow=False))
         if proc.returncode == 3:
             return None
-        mode, uid, gid = self._check(proc, f"cannot stat {path}").stdout.split()
-        return Stat(int(mode, 8), int(uid), int(gid))
+        mode, uid, gid, raw = self._check(proc, f"cannot stat {path}").stdout.split()
+        bits = int(raw, 16)
+        kind = ("dir" if stat.S_ISDIR(bits) else "link" if stat.S_ISLNK(bits)
+                else "file" if stat.S_ISREG(bits) else "special")
+        return Stat(int(mode, 8), int(uid), int(gid), kind)
 
     def exists(self, path):
         return self._sh(_EXISTS, self._path(path)).returncode == 0
@@ -142,3 +146,16 @@ class ShellTarget(Target):
     def remove(self, path):
         proc = self._sh(_REMOVE, self._path(path, follow=False))
         self._check(proc, f"cannot remove {path}")
+
+    def realpath(self, path):
+        proc = self._sh('exec readlink -m -- "$1"', self._path(path))
+        return self._check(proc, f"cannot resolve {path}").stdout.decode().rstrip("\n")
+
+    def set_attrs(self, path, mode, owner):
+        script = 'set -e; [ -L "$1" ] || chmod "$2" "$1"; [ -z "$3" ] || chown -h "$3" "$1"'
+        proc = self._sh(script, self._path(path, follow=False), f"{mode:o}", self._owner(owner))
+        self._check(proc, f"cannot restore attributes of {path}")
+
+    def rmdir(self, path):
+        proc = self._sh('rmdir -- "$1"', self._path(path, follow=False))
+        self._check(proc, f"cannot remove directory {path}")

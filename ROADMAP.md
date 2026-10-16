@@ -22,7 +22,7 @@ be inferred from the existing design.
 
 | Stage | Scope | Status |
 |---|---|---|
-| 0 | File backups and recovery foundations for subsequent changes | Pending |
+| 0 | File backups and recovery foundations for subsequent changes | Implemented; 111 tests pass, 1 root-only test skipped |
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Pending |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Pending |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Pending |
@@ -64,3 +64,11 @@ these functional milestones.
 - Preview, repeated application and failure handling are verified.
 - Tests pass; one or more focused commits are created.
 - Outstanding board checks and the next stage remain recorded here.
+
+## Stage 0 verification
+
+Private snapshots, symlink destination recovery, permissions, automatic
+file rollback after injected failures, restore preview, and reversible
+manual restoration pass tests. File recovery does not undo runtime effects
+or changes made by concurrent processes. SSH/physical-media confirmation
+remains on the hardware checklist.

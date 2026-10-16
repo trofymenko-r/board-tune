@@ -6,6 +6,8 @@ import difflib
 from dataclasses import dataclass
 
 from board_tune.target import Target
+from board_tune.backup import Backup
+from board_tune.errors import Error
 
 
 @dataclass
@@ -13,6 +15,7 @@ class _File:
     data: bytes
     mode: int | None
     owner: tuple[int, int] | None
+    sensitive: bool = False
 
 
 @dataclass
@@ -68,6 +71,7 @@ class Plan:
         self._staged: dict[str, object] = {}
         self._originals: dict[str, bytes | None] = {}
         self._commands: list[list[str]] = []
+        self.backup: Backup | None = None
 
     # Reading
 
@@ -101,11 +105,11 @@ class Plan:
     # Staging
 
     def write(self, path: str, data: str | bytes, mode: int | None = None,
-              owner: tuple[int, int] | None = None) -> None:
+              owner: tuple[int, int] | None = None, sensitive: bool = False) -> None:
         """Stage file contents; see Target.write() for mode semantics."""
         if isinstance(data, str):
             data = data.encode()
-        self._staged[path] = _File(data, mode, owner)
+        self._staged[path] = _File(data, mode, owner, sensitive)
 
     def mkdir(self, path: str, mode: int = 0o755,
               owner: tuple[int, int] | None = (0, 0)) -> None:
@@ -143,10 +147,11 @@ class Plan:
     def _change(self, path: str, staged: object) -> Change | None:
         if isinstance(staged, _File):
             old = self._original(path)
+            detail = "[sensitive content hidden]\n" if staged.sensitive else _diff(path, old or b"", staged.data)
             if old is None:
-                return Change("create", path, _diff(path, b"", staged.data))
+                return Change("create", path, detail)
             if old != staged.data:
-                return Change("modify", path, _diff(path, old, staged.data))
+                return Change("modify", path, detail)
             if staged.mode is not None and self._attrs_differ(path, staged.mode, staged.owner):
                 return Change("attrs", path, f"mode {staged.mode:04o}")
             return None
@@ -183,6 +188,25 @@ class Plan:
         return [c for c in changes if c is not None]
 
     def apply(self, changes: list[Change]) -> None:
+        if not changes and not self._commands:
+            return
+        follow = {change.path for change in changes
+                  if isinstance(self._staged[change.path], _Dir)
+                  or isinstance(self._staged[change.path], _File)
+                  and self._staged[change.path].mode is None}
+        self.backup = Backup.create(self.target, [change.path for change in changes], follow)
+        try:
+            self._apply(changes)
+        except BaseException as error:
+            try:
+                self.backup.restore()
+            except (Error, OSError) as recovery:
+                raise Error(f"apply failed; backup {self.backup.id}; recovery failed: {recovery}") from error
+            if isinstance(error, KeyboardInterrupt):
+                raise
+            raise Error(f"apply failed; files restored from backup {self.backup.id}: {error}") from error
+
+    def _apply(self, changes: list[Change]) -> None:
         for change in changes:
             staged = self._staged[change.path]
             if isinstance(staged, _File):

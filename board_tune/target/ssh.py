@@ -65,8 +65,8 @@ class SSHTarget(ShellTarget):
             argv = ["sudo", "-n", "--"] + argv
         return self._remote(argv, input)
 
-    def run(self, argv):
-        proc = self._sh(_RUN, *argv)
+    def run(self, argv, input=None):
+        proc = self._sh(_RUN, *argv, input=input or b"")
         return self._check(proc, f"{shlex.join(argv)} failed").stdout.decode()
 
     def close(self):
