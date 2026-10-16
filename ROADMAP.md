@@ -23,7 +23,7 @@ be inferred from the existing design.
 | Stage | Scope | Status |
 |---|---|---|
 | 0 | File backups and recovery foundations for subsequent changes | Implemented; 111 tests pass, 1 root-only test skipped |
-| 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Pending |
+| 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented with hash-file input; physical login/sudo check pending |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Pending |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Pending |
 | 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Pending |
@@ -72,3 +72,18 @@ file rollback after injected failures, restore preview, and reversible
 manual restoration pass tests. File recovery does not undo runtime effects
 or changes made by concurrent processes. SSH/physical-media confirmation
 remains on the hardware checklist.
+
+## Stage 1 verification and next action
+
+Implemented one local user per profile, UID/GID allocation, shell selection,
+supplemental groups, locked/hash-file password policy, and managed sudo
+rules. Tests cover offline databases, idempotency, dry-run, secret
+redaction, SSH-key composition and native live command planning/stdin.
+Live tools take their own locks; file snapshots do not undo native account
+commands. New homes are empty (no /etc/skel import); no account deletion or
+UID/home migration is performed.
+
+Owner input requested: run the login/SSH-key/sudo smoke test on a test board,
+or provide its SSH destination. Never exercise user changes on an unspecified
+board. Stage 2 (identity/localisation/time) can proceed independently while
+that check is pending.

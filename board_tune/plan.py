@@ -71,6 +71,9 @@ class Plan:
         self._staged: dict[str, object] = {}
         self._originals: dict[str, bytes | None] = {}
         self._commands: list[list[str]] = []
+        self._pre_commands: list[list[str]] = []
+        self._inputs: dict[tuple[str, ...], bytes] = {}
+        self._projected: dict[str, bytes] = {}
         self.backup: Backup | None = None
 
     # Reading
@@ -83,7 +86,7 @@ class Plan:
     def read(self, path: str) -> bytes | None:
         staged = self._staged.get(path)
         if staged is None:
-            return self._original(path)
+            return self._projected.get(path, self._original(path))
         return staged.data if isinstance(staged, _File) else None
 
     def read_text(self, path: str) -> str | None:
@@ -121,10 +124,22 @@ class Plan:
     def remove(self, path: str) -> None:
         self._staged[path] = _ABSENT
 
-    def command(self, argv: list[str]) -> None:
-        """Run argv after applying the changes, on live targets only."""
-        if self.target.live and argv not in self._commands:
-            self._commands.append(argv)
+    def project(self, path: str, data: str) -> None:
+        """Expose metadata that a native pre-command will create, without writing it."""
+        self._projected[path] = data.encode()
+
+    def command(self, argv: list[str], input: bytes | None = None,
+                before_files: bool = False) -> None:
+        """Queue a native command; stdin is never included in the preview."""
+        commands = self._pre_commands if before_files else self._commands
+        if self.target.live and argv not in commands:
+            commands.append(argv)
+            if input is not None:
+                self._inputs[tuple(argv)] = input
+
+    @property
+    def pre_commands(self) -> list[list[str]]:
+        return list(self._pre_commands)
 
     def note(self, text: str) -> None:
         """Tell the user something once the plan is shown."""
@@ -188,7 +203,7 @@ class Plan:
         return [c for c in changes if c is not None]
 
     def apply(self, changes: list[Change]) -> None:
-        if not changes and not self._commands:
+        if not changes and not self._commands and not self._pre_commands:
             return
         follow = {change.path for change in changes
                   if isinstance(self._staged[change.path], _Dir)
@@ -206,7 +221,16 @@ class Plan:
                 raise
             raise Error(f"apply failed; files restored from backup {self.backup.id}: {error}") from error
 
+    def _run(self, argv: list[str]) -> None:
+        data = self._inputs.get(tuple(argv))
+        if data is None:
+            self.target.run(argv)
+        else:
+            self.target.run(argv, input=data)
+
     def _apply(self, changes: list[Change]) -> None:
+        for argv in self._pre_commands:
+            self._run(argv)
         for change in changes:
             staged = self._staged[change.path]
             if isinstance(staged, _File):
@@ -218,4 +242,4 @@ class Plan:
             else:
                 self.target.remove(change.path)
         for argv in self._commands:
-            self.target.run(argv)
+            self._run(argv)

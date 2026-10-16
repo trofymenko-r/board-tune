@@ -62,7 +62,7 @@ unless that hook's options are edited. A local source path for existing
 
 The menu uses a compact gray dialog on a blue background, with the same
 checkboxes, choices and button layout as kernel menuconfig. The top level
-contains Board, Serial console, Ethernet and SSH server. Each feature has
+contains Board, Users, Serial console, Ethernet and SSH server. Each feature has
 an explicit Configure checkbox; advanced boot and network options are in
 submenus, and public keys have their own SSH submenu.
 
@@ -145,6 +145,47 @@ A hook whose menu entry is disabled leaves the target untouched. When
 applied, an enabled hook fully manages the files it owns; for example, turning off
 autologin removes the autologin drop-in again.
 
+### Users (`USERS`)
+
+Create or update one local user per profile. Options cover create-if-missing,
+login shell, supplemental groups (keep/add/replace), password policy
+(keep/lock/set hash), and a per-user sudo rule (keep/password/passwordless/
+remove managed rule). Existing UIDs and home directories cannot be moved.
+New users get a free UID/GID from the target's login.defs range, a private
+primary group and an empty mode-0750 home. Other users are preserved.
+
+```config
+CONFIG_USERS=y
+CONFIG_USERS_NAME="operator"
+CONFIG_USERS_GROUPS_ADD=y
+CONFIG_USERS_GROUPS="dialout"
+CONFIG_USERS_SUDO_NOPASSWD=y
+CONFIG_SSH=y
+CONFIG_SSH_AUTHORIZED_KEYS="/home/me/.ssh/id_ed25519.pub"
+CONFIG_SSH_AUTHORIZED_KEYS_USER="operator"
+```
+
+New accounts start with a locked password. To set one, generate a hash with
+`openssl passwd -6` into a private file on this computer, select
+`USERS_PASSWORD_HASH=y` and set `USERS_PASSWORD_HASH_FILE` to that file.
+Profiles store the source path, never the hash itself; shadow/gshadow diffs
+and command stdin are hidden. Locking a password does not remove SSH keys.
+The menu selects an existing ordinary user when possible; all user actions
+start at Keep, so changing the selected name cannot copy another identity.
+
+On live targets account operations use shadow-utils (useradd/groupadd/
+usermod/chpasswd), which take the native database locks. New metadata is
+available to later SSH/serial hooks within the same plan. Live account
+commands are not automatically reversed by file recovery; inspect the
+reported commands after a failure. Offline targets edit only their own
+passwd/group/shadow/gshadow files through the backed-up plan.
+
+Sudo rules use `/etc/sudoers.d/90-board-tune-USER`. The main sudoers must
+include that directory; live rules are checked through visudo before
+installation. Removing a managed rule does not revoke grants from other
+files or groups. Groups must exist before adding memberships. Verify real
+login and sudo behavior on a test board before relying on a new account.
+
 ### Serial console (`SERIAL_CONSOLE`)
 
 - Puts the kernel console on the serial port at the configured baud
@@ -221,7 +262,7 @@ sudo .venv/bin/pytest tests/test_block.py
 
 ## Limitations
 
-- Users and passwords are not managed yet.
+- One local user is managed per profile; account deletion and UID/home migration are not supported.
 - Only one wired interface can be configured.
 - Network changes on live boards are not activated until a reboot.
 - The Raspberry Pi 5 GPIO UART option relies on the documented

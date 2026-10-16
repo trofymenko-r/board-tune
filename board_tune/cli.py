@@ -119,15 +119,16 @@ def apply(args: argparse.Namespace, registry: Registry, config: Config,
         changes = plan.changes()
         _, board = registry.board(config)
         print(f"Target: {target.description}, {board.title}")
-        if not changes:
+        if not changes and not plan.pre_commands and not plan.commands:
             print("Nothing to change.")
             return 0
+        show_plan([], plan.pre_commands)
         show_plan(changes, plan.commands)
         for note in plan.notes:
             print(f"note: {note}")
         if args.dry_run:
             return 0
-        if not args.yes and not _confirm(f"Apply {len(changes)} change(s)?"):
+        if not args.yes and not _confirm(f"Apply {len(changes) + len(plan.pre_commands) + len(plan.commands)} change(s)?"):
             print("Aborted.")
             return 1
         plan.apply(changes)

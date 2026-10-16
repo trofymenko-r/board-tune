@@ -1,0 +1,110 @@
+config USERS
+	bool "Configure a user"
+	help
+	  Create or update one local user. Other accounts are preserved.
+	  New accounts start with a locked password. Existing settings are
+	  kept unless a change is explicitly requested below.
+
+if USERS
+
+config USERS_NAME
+	string "User name"
+	default "pi"
+
+config USERS_CREATE
+	bool "Create if missing"
+	default y
+
+config USERS_SHELL
+	string "Login shell (empty: keep/default)"
+	help
+	  Leave empty to keep an existing shell or use /bin/bash for a
+	  new account. The shell must be installed on the target.
+
+choice
+	prompt "Password"
+	default USERS_PASSWORD_KEEP
+
+config USERS_PASSWORD_KEEP
+	bool "Keep current (new user: locked)"
+
+config USERS_PASSWORD_LOCK
+	bool "Lock password login"
+	help
+	  Disable password authentication for this account. This does
+	  not revoke authorized SSH keys or terminate existing sessions.
+
+config USERS_PASSWORD_HASH
+	bool "Set password from a hash file"
+
+endchoice
+
+config USERS_PASSWORD_HASH_FILE
+	string "Password hash file (on this computer)"
+	depends on USERS_PASSWORD_HASH
+	help
+	  A file containing one encrypted password hash, such as one
+	  generated with openssl passwd -6. The hash is not saved in
+	  profiles or displayed in the change preview.
+
+choice
+	prompt "Additional groups"
+	default USERS_GROUPS_KEEP
+
+config USERS_GROUPS_KEEP
+	bool "Keep current"
+
+config USERS_GROUPS_ADD
+	bool "Add to groups"
+
+config USERS_GROUPS_REPLACE
+	bool "Replace additional groups"
+
+endchoice
+
+config USERS_GROUPS
+	string "Groups (space or comma separated)"
+	depends on !USERS_GROUPS_KEEP
+	help
+	  Groups must already exist. Replace with an empty list removes
+	  all supplementary memberships, keeping the primary group.
+
+choice
+	prompt "Sudo rule managed by board-tune"
+	default USERS_SUDO_KEEP
+
+config USERS_SUDO_KEEP
+	bool "Keep current"
+
+config USERS_SUDO_PASSWORD
+	bool "Grant sudo with password"
+
+config USERS_SUDO_NOPASSWD
+	bool "Grant passwordless sudo"
+
+config USERS_SUDO_REMOVE
+	bool "Remove board-tune rule"
+	help
+	  Remove only board-tune's per-user sudo rule. Existing grants
+	  from system groups or other sudoers files are preserved.
+
+endchoice
+
+menu "Advanced"
+
+config USERS_UID
+	int "UID for new user (0: automatic)"
+	range 0 60000
+	default 0
+	help
+	  Existing accounts cannot be renumbered. Automatic allocation
+	  uses the target's UID_MIN/UID_MAX settings in /etc/login.defs.
+
+config USERS_HOME
+	string "Home for new user (empty: /home/USER)"
+	help
+	  Existing home directories cannot be moved by this hook.
+
+endmenu
+
+endif
