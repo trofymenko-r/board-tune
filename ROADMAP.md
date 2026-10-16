@@ -25,7 +25,7 @@ be inferred from the existing design.
 | 0 | File backups and recovery foundations for subsequent changes | Implemented; 111 tests pass, 1 root-only test skipped |
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented with hash-file input; physical login/sudo check pending |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
-| 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Pending |
+| 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
 | 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
@@ -102,3 +102,17 @@ Stage 1 access guard: record the SSH login UID and reject changing its shell
 or removing its supplementary groups/managed sudo grant during that same
 session. Unprivileged extracted-directory workflows report that ownership
 must be applied as root before boot.
+
+## Stage 3 verification and next action
+
+Wi-Fi keyfile tests cover WPA2/WPA3/open security, SSID escaping, private
+credentials, stored-secret reuse, country validation, hidden/autoconnect/
+priority settings, DHCP/static addresses and idempotency. Generated samples
+were also accepted by the host libnm parser and normalizer without contacting
+NetworkManager. Both boot services passed systemd-analyze verify. Runtime
+activation is deferred until reboot; live command tests confirm no restart,
+connection activation or radio unblock occurs during application.
+
+Physical checks and owner-run commands are in docs/board-checks.md. The next
+functional stage is hardware interfaces; pin usage and real device behavior
+must be verified on the corresponding board before relying on them.

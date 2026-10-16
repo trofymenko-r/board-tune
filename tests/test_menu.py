@@ -16,6 +16,7 @@ import menuconfig
 import pytest
 
 from board_tune.menu import kernel_style
+from board_tune.registry import Registry
 
 
 class Terminal:
@@ -25,6 +26,10 @@ class Terminal:
 
     def send(self, text):
         os.write(self.fd, text.encode())
+
+    def enter_hook(self, name):
+        index = [hook.name for hook in Registry.load().hooks].index(name) + 1
+        self.send("g" + "j" * index + "\n")
 
     def resize(self, rows, columns):
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, columns, 0, 0))
@@ -81,7 +86,7 @@ def terminal(tmp_path, profile=""):
 
 def test_terminal_edit_save_and_resize(tmp_path):
     with terminal(tmp_path, "CONFIG_SSH=y\nCONFIG_SSH_PORT=2200\n") as (session, destination):
-        session.send("jjjj\n")
+        session.enter_hook("ssh")
         session.wait("Start at boot")
         session.send("jj\n")
         session.wait("Port (int)")
@@ -97,7 +102,7 @@ def test_terminal_edit_save_and_resize(tmp_path):
 
 def test_terminal_discard_does_not_export(tmp_path):
     with terminal(tmp_path) as (session, destination):
-        session.send("jjj\n")
+        session.enter_hook("network")
         session.wait("Configure Ethernet")
         session.send(" q")
         session.wait("Keep changes and continue")
@@ -137,7 +142,8 @@ def test_adapter_restores_hooks_and_style_on_failure(monkeypatch):
 
 def test_terminal_input_cancel_and_small_window(tmp_path):
     with terminal(tmp_path, "CONFIG_SSH=y\nCONFIG_SSH_PORT=2200\n") as (session, destination):
-        session.send("jjjj\njj\n")
+        session.enter_hook("ssh")
+        session.send("jj\n")
         session.wait("Port (int)")
         # Tab selects OK, then Cancel. Enter must leave the original value.
         session.send("\x152222\t\t\n")

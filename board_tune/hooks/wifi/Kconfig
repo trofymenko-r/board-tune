@@ -1,0 +1,86 @@
+config WIFI
+	bool "Configure a Wi-Fi profile"
+	help
+	  Configure a NetworkManager station profile. Changes take effect
+	  after reboot. Existing connections are not activated or removed.
+
+if WIFI
+
+config WIFI_IFACE
+	string "Interface"
+	default "wlan0"
+
+config WIFI_SSID
+	string "SSID"
+
+choice
+	prompt "Security"
+	default WIFI_AUTH_PSK
+
+config WIFI_AUTH_PSK
+	bool "WPA2/WPA3 Personal"
+
+config WIFI_AUTH_SAE
+	bool "WPA3 Personal only"
+
+config WIFI_AUTH_OPEN
+	bool "Open network"
+
+endchoice
+
+config WIFI_PASSWORD_FILE
+	string "Password file (on this computer; empty: keep stored key)"
+	depends on !WIFI_AUTH_OPEN
+	help
+	  The passphrase is read from this file, never stored in profiles
+	  or shown in diffs. Empty is allowed only if a matching SSID and
+	  interface already have a stored password on the target.
+
+config WIFI_COUNTRY
+	string "Country code (empty: keep)"
+	help
+	  Two-letter ISO country where the board operates. Requires iw,
+	  rfkill and the target's iso3166.tab. Applies on next boot.
+
+config WIFI_HIDDEN
+	bool "Hidden SSID"
+
+config WIFI_AUTOCONNECT
+	bool "Connect automatically"
+	default y
+
+config WIFI_PRIORITY
+	int "Autoconnect priority"
+	range -999 999
+	default 100
+
+menu "IPv4"
+
+choice
+	prompt "Address mode"
+	default WIFI_DHCP
+
+config WIFI_DHCP
+	bool "DHCP"
+
+config WIFI_STATIC
+	bool "Static address"
+
+endchoice
+
+if WIFI_STATIC
+
+config WIFI_ADDRESS
+	string "IPv4 address / prefix"
+
+config WIFI_GATEWAY
+	string "Gateway"
+
+config WIFI_DNS
+	string "DNS servers"
+
+endif
+
+endmenu
+
+endif

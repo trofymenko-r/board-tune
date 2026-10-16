@@ -33,24 +33,24 @@ def _ip(symbol: str, text: str):
         raise Error(f"{symbol}: '{text}' is not an IPv4 address") from None
 
 
-def settings(cfg) -> Settings:
-    iface = cfg.str("NETWORK_IFACE")
+def settings(cfg, prefix="NETWORK") -> Settings:
+    iface = cfg.str(f"{prefix}_IFACE")
     if not _IFACE.fullmatch(iface):
-        raise Error(f"NETWORK_IFACE: '{iface}' is not a valid interface name")
+        raise Error(f"{prefix}_IFACE: '{iface}' is not a valid interface name")
     s = Settings(iface)
-    if not cfg.enabled("NETWORK_STATIC"):
+    if not cfg.enabled(f"{prefix}_STATIC"):
         return s
-    address = cfg.str("NETWORK_ADDRESS")
+    address = cfg.str(f"{prefix}_ADDRESS")
     try:
         if "/" not in address:
             raise ValueError
         s.address = ipaddress.IPv4Interface(address)
     except ValueError:
-        raise Error(f"NETWORK_ADDRESS: '{address}' is not an IPv4 address with "
+        raise Error(f"{prefix}_ADDRESS: '{address}' is not an IPv4 address with "
                     "a prefix length, e.g. 192.168.1.50/24") from None
-    if cfg.str("NETWORK_GATEWAY"):
-        s.gateway = _ip("NETWORK_GATEWAY", cfg.str("NETWORK_GATEWAY"))
-    s.dns = tuple(_ip("NETWORK_DNS", d) for d in cfg.str("NETWORK_DNS").split())
+    if cfg.str(f"{prefix}_GATEWAY"):
+        s.gateway = _ip(f"{prefix}_GATEWAY", cfg.str(f"{prefix}_GATEWAY"))
+    s.dns = tuple(_ip(f"{prefix}_DNS", d) for d in cfg.str(f"{prefix}_DNS").split())
     return s
 
 

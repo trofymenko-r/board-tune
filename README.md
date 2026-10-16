@@ -62,7 +62,7 @@ unless that hook's options are edited. A local source path for existing
 
 The menu uses a compact gray dialog on a blue background, with the same
 checkboxes, choices and button layout as kernel menuconfig. The top level
-contains Board, Users, Serial console, Ethernet, SSH server and System. Each feature has
+contains Board, Users, Serial console, Ethernet, Wi-Fi, SSH server and System. Each feature has
 an explicit Configure checkbox; advanced boot and network options are in
 submenus, and public keys have their own SSH submenu.
 
@@ -212,6 +212,43 @@ DNS servers. Uses a NetworkManager profile (Raspberry Pi OS Bookworm and
 later) or a systemd-networkd file. Changes take effect on the next
 boot, so a live board never drops the connection that board-tune is
 using.
+
+### Wi-Fi (`WIFI`)
+
+One NetworkManager station profile per invocation: interface, UTF-8 SSID,
+WPA2/WPA3 Personal, WPA3-only or open security, hidden SSID, autoconnect,
+priority, DHCP/static IPv4, gateway and DNS. Existing profiles remain in
+place, so repeat with another SSID to provision multiple known networks.
+Enterprise/WEP/AP profiles are not imported or managed by this hook.
+
+```config
+CONFIG_WIFI=y
+CONFIG_WIFI_IFACE="wlan0"
+CONFIG_WIFI_SSID="Lab WiFi"
+CONFIG_WIFI_PASSWORD_FILE="/home/me/private/wifi-password"
+CONFIG_WIFI_COUNTRY="UA"
+CONFIG_WIFI_AUTOCONNECT=y
+CONFIG_WIFI_PRIORITY=100
+```
+
+Set the country to where the board actually operates; UA above is an
+example. Credentials come from a private file on this computer. An empty
+password-source field reuses a stored secret only for the same SSID and
+interface; changing SSID requires its own credential. Profiles store only
+the source path, and protected connection diffs are hidden. Generated
+NetworkManager keyfiles are mode 0600. Open networks need no password;
+WPA3-only profiles require protected management frames.
+
+The target needs NetworkManager/nmcli, rfkill, and iw plus ISO country data
+when changing country. Boot services set the regulatory domain/unblock the
+radio before NetworkManager, then enable its Wi-Fi radio after it starts.
+Saved rfkill state is updated without changing the running radio. Live
+application reloads profiles but never activates a connection, restarts
+NetworkManager or unblocks the current radio. Settings take effect at reboot.
+
+The format follows the [NetworkManager keyfile reference](https://www.networkmanager.dev/docs/api/latest/nm-settings-keyfile.html).
+Physical login, locale/time and radio checks are tracked in
+[docs/board-checks.md](docs/board-checks.md).
 
 ### SSH server (`SSH`)
 
