@@ -42,7 +42,12 @@ class SSHTarget(ShellTarget):
                                              "-f", "-N", self._dest])
         if master.returncode != 0:
             raise Error(f"cannot connect to {self._dest}")
-        if self._remote(["id", "-u"]).stdout.strip() == b"0":
+        identity = self._remote(["id", "-u"])
+        try:
+            self.login_uid = int(identity.stdout.strip())
+        except ValueError:
+            raise Error(f"{self.description}: cannot determine SSH login UID") from None
+        if self.login_uid == 0:
             return
         if self._remote(["sudo", "-n", "true"]).returncode != 0:
             raise Error(f"{self.description}: passwordless sudo is required "

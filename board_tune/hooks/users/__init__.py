@@ -147,6 +147,8 @@ class Users(Hook):
                               "--key", "SUB_UID_COUNT=0", "--key", "SUB_GID_COUNT=0",
                               "--", name], before_files=True)
             plan.mkdir(home, 0o750, (uid, gid))
+            if not ctx.target.chown:
+                plan.note("unprivileged directory target: apply ownership as root before booting this filesystem")
         else:
             uid, gid, home = int(account[2]), int(account[3]), account[5]
             if cfg.int("USERS_UID") not in (0, uid):
@@ -154,6 +156,8 @@ class Users(Hook):
             if cfg.str("USERS_HOME") not in ("", home):
                 raise Error("existing user home directories cannot be moved")
             if shell and shell != account[6]:
+                if ctx.target.live and ctx.target.login_uid == uid:
+                    raise Error("cannot change the connected SSH user's shell; connect as another administrator")
                 account[6] = shell
                 plan.command(["usermod", "--shell", shell, "--", name], before_files=True)
         shadow_entry = next((row for row in shadow if row[0] == name), None)
@@ -176,6 +180,8 @@ class Users(Hook):
                 raise Error("USERS_GROUPS contains an invalid or unknown group")
             old = {row[0] for row in groups if name in row[3].split(",")}
             desired = old | wanted if cfg.enabled("USERS_GROUPS_ADD") else wanted
+            if ctx.target.live and uid != 0 and ctx.target.login_uid == uid and old - desired:
+                raise Error("cannot remove groups from the connected SSH user; connect as another administrator")
             for group in groups:
                 members = list(filter(None, group[3].split(",")))
                 if group[0] in desired and name not in members:
@@ -213,6 +219,10 @@ class Users(Hook):
         if cfg.enabled("USERS_SUDO_KEEP"):
             return
         if cfg.enabled("USERS_SUDO_REMOVE"):
+            account = accounts.lookup(plan, name)
+            if (ctx.target.live and account.uid != 0 and ctx.target.login_uid == account.uid
+                    and plan.exists(path)):
+                raise Error("cannot remove the connected SSH user's sudo rule; connect as another administrator")
             plan.remove(path)
             return
         main = plan.read_text("/etc/sudoers") or ""

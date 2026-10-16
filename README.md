@@ -150,7 +150,11 @@ autologin removes the autologin drop-in again.
 Create or update one local user per profile. Options cover create-if-missing,
 login shell, supplemental groups (keep/add/replace), password policy
 (keep/lock/set hash), and a per-user sudo rule (keep/password/passwordless/
-remove managed rule). Existing UIDs and home directories cannot be moved.
+remove managed rule). Existing UIDs and home directories cannot be moved. Over SSH, changing
+the connected login's shell or removing its groups/managed sudo access is
+refused; use another administrator for those changes.
+For a bootable extracted filesystem, run as root so home/key ownership
+can be applied; unprivileged directory targets are for preparation/testing.
 New users get a free UID/GID from the target's login.defs range, a private
 primary group and an empty mode-0750 home. Other users are preserved.
 

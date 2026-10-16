@@ -186,3 +186,22 @@ def test_live_uses_native_commands_and_private_stdin(userfs, target, tmp_path, m
     password = next(call for call in calls if call[0][0] == "chpasswd")
     assert password[1] == f"alice:{HASH}\n".encode()
     assert next(i for i, call in enumerate(calls) if call[0][0] == "useradd") < calls.index(password)
+
+
+@pytest.mark.parametrize("assignment", [
+    "USERS_SHELL=/bin/sh",
+    "USERS_GROUPS_REPLACE=y",
+    "USERS_SUDO_REMOVE=y",
+])
+def test_live_refuses_to_break_connected_administrator(userfs, target, tmp_path, assignment):
+    from board_tune.errors import Error
+
+    rules = userfs / "etc/sudoers.d"
+    rules.mkdir()
+    (rules / "90-board-tune-pi").write_text("pi ALL=(ALL:ALL) NOPASSWD: ALL\n")
+    conf = Configuration(Registry.load(), str(tmp_path))
+    for value in ("USERS=y", "USERS_NAME=pi", assignment):
+        conf.set(value)
+    target.live, target.login_uid = True, 1000
+    with pytest.raises(Error, match="connect as another administrator"):
+        build_plan(Registry.load(), conf.config, target)

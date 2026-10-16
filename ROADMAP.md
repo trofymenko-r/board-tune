@@ -97,3 +97,8 @@ transport. First boot locale generation, console keyboard application and
 actual NTP synchronisation still need board verification. Locale data,
 locales/keyboard packages and the NTP service are not installed by this hook.
 The next independent functional stage is Wi-Fi.
+
+Stage 1 access guard: record the SSH login UID and reject changing its shell
+or removing its supplementary groups/managed sudo grant during that same
+session. Unprivileged extracted-directory workflows report that ownership
+must be applied as root before boot.
