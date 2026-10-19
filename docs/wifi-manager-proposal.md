@@ -1,7 +1,8 @@
 # Wi-Fi manager proposal
 
-Status: draft for owner review, 2026-10-19. This document proposes the
-interaction and implementation boundaries; runtime behavior is unchanged.
+Status: approved by the owner on 2026-10-19, including separate Connect now
+and Save only actions and a 60-second rollback deadline. Forget network
+was explicitly reconfirmed. Implementation proceeds in the increments below.
 
 ## Observed problem
 
@@ -104,7 +105,7 @@ Private temporary transport files, if needed, have restricted permissions
 and are removed after use. Saved credentials use NetworkManager's
 protected profile storage.
 
-Proposed action semantics, pending owner agreement:
+Agreed action semantics:
 
 - Save only stages profile changes for the normal review/apply step;
   it never disconnects or activates a network.

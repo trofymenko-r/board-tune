@@ -288,3 +288,11 @@ The corrected SSH readback returns `SERIAL_CONSOLE_AUTOLOGIN=y` and
 ExecStart and DropInPaths. SHA-256 checks of config.txt, cmdline.txt and
 the instance override matched before/after. No files were applied, no
 getty was restarted and no reboot was needed.
+
+## Wi-Fi manager inventory (2026-10-19)
+
+Read-only SSH checks found all three saved profiles with distinct UUIDs;
+wireless90-5G was correctly ordered first as the active wlan0 connection.
+Status returned its actual 192.168.1.156/24 address, gateway and DNS. No
+activation, disconnect, deletion or forced scan was performed. A real PTY
+check also opens/closes the offline profile browser without changing files.

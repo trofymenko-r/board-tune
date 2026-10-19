@@ -98,6 +98,13 @@ class Wifi(Hook):
     order = 35
 
     def read(self, ctx):
+        from board_tune.wifi import active_connections
+
+        try:
+            active = active_connections(ctx.target)
+        except Error:
+            active = {}
+            ctx.plan.note("active Wi-Fi connection could not be queried; showing a saved profile")
         candidates = []
         for profile in profiles(ctx):
             name, ssid, iface, auth, data, priority = profile
@@ -114,7 +121,8 @@ class Wifi(Hook):
                           WIFI_HIDDEN="y" if _first(wifi, "hidden").lower() in ("true", "yes", "1") else "n",
                           WIFI_AUTOCONNECT="n" if _first(connection, "autoconnect").lower() in ("false", "no", "0") else "y")
             values[{"open": "WIFI_AUTH_OPEN", "wpa-psk": "WIFI_AUTH_PSK", "sae": "WIFI_AUTH_SAE"}[auth]] = "y"
-            candidates.append(((iface != "wlan0", -priority, name), values))
+            identifier = _first(connection, "uuid")
+            candidates.append(((identifier not in active, iface != "wlan0", -priority, name), values))
         if not candidates:
             return {"WIFI": "n"}
         values = min(candidates, key=lambda item: item[0])[1]
@@ -123,7 +131,7 @@ class Wifi(Hook):
         if match:
             values["WIFI_COUNTRY"] = match.group(1)
         if len(candidates) > 1:
-            ctx.plan.note("multiple Wi-Fi profiles found; the menu shows one profile")
+            ctx.plan.note("multiple Wi-Fi profiles found; use the Wi-Fi manager to view all profiles")
         return values
 
     def plan(self, ctx):

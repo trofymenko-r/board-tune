@@ -91,6 +91,7 @@ class Configuration:
 
     def __init__(self, registry: Registry, workdir: str):
         self._workdir = workdir
+        self.target = None
         kconfig = os.path.join(workdir, "Kconfig")
         with open(kconfig, "w") as f:
             f.write(generate_kconfig(registry))
@@ -108,6 +109,7 @@ class Configuration:
                     board_hint: Board | None = None) -> list[str]:
         """Seed the menu from target files; explicit profiles are loaded afterwards."""
         plan = Plan(target)
+        self.target = target
         for platform in registry.platforms:
             board = (platform.detect_board(target) if target.live
                      else platform.detect_offline_board(target))
@@ -187,7 +189,12 @@ class Configuration:
         old_env = os.environ.get("KCONFIG_CONFIG")
         os.environ["KCONFIG_CONFIG"] = path
         try:
-            with kernel_style(menuconfig):
+            actions = {}
+            if self.target is not None:
+                from board_tune.wifi_menu import WifiManager
+                self.wifi_manager = WifiManager(self.target)
+                actions["Wi-Fi"] = self.wifi_manager.show
+            with kernel_style(menuconfig, actions):
                 menuconfig.menuconfig(self.kconf)
         finally:
             if old_env is None:

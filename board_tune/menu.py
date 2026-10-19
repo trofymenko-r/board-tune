@@ -28,7 +28,7 @@ def geometry(rows: int, columns: int, entries: int) -> tuple[int, int, int, int]
 
 
 class _KernelStyle:
-    def __init__(self, ui):
+    def __init__(self, ui, actions=None):
         self.ui = ui
         self.getch = ui._getch_compat
         self.input_dialog = ui._input_dialog
@@ -38,6 +38,7 @@ class _KernelStyle:
         self.button = 0
         self.current_menu = None
         self.menu_geometry = None
+        self.actions = actions or {}
 
     def resize(self):
         ui = self.ui
@@ -227,6 +228,14 @@ class _KernelStyle:
         if key == "\n" and self.button:
             key = ("\n", "\x1b", "?", "s", "o")[self.button]
             self.button = 0
+        if key in ("\n", "l", "L") and ui._shown:
+            node = ui._shown[ui._sel_node_i]
+            action = self.actions.get(node.prompt[0]) if node.prompt else None
+            if action is not None:
+                if action(ui):
+                    return "\n"
+                ui._stdscr.touchwin()
+                return curses.KEY_RESIZE
         if key == "?":
             self.help(ui._shown[ui._sel_node_i])
         elif key in ("s", "S"):
@@ -239,9 +248,9 @@ class _KernelStyle:
 
 
 @contextmanager
-def kernel_style(ui):
+def kernel_style(ui, actions=None):
     """Temporarily adapt Kconfiglib; leave its module and the environment intact."""
-    adapter = _KernelStyle(ui)
+    adapter = _KernelStyle(ui, actions)
     replacements = {"_resize_main": adapter.resize, "_draw_main": adapter.draw,
                     "_draw_frame": adapter.frame, "_getch_compat": adapter.key,
                     "_info_dialog": adapter.help, "_load_dialog": adapter.load,

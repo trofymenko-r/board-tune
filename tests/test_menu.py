@@ -62,7 +62,7 @@ class Terminal:
 
 
 @contextmanager
-def terminal(tmp_path, profile=""):
+def terminal(tmp_path, profile="", target=None):
     source = tmp_path / "input.cfg"
     source.write_text(profile)
     destination = tmp_path / "output.cfg"
@@ -70,7 +70,8 @@ def terminal(tmp_path, profile=""):
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
     env = dict(os.environ, TERM="xterm", BOARD_TUNE_PATH="", MENUCONFIG_STYLE="")
     process = subprocess.Popen(
-        [sys.executable, "-m", "board_tune", "--load", str(source), "--menu", "--save", str(destination)],
+        [sys.executable, "-m", "board_tune", *([str(target)] if target else []),
+         "--load", str(source), "--menu", "--save", str(destination)],
         stdin=slave, stdout=slave, stderr=slave, env=env)
     os.close(slave)
     session = Terminal(process, master)
@@ -97,6 +98,26 @@ def test_hardware_choices_can_be_edited_and_saved(tmp_path):
         session.wait()
         assert session.process.returncode == 0
         assert "CONFIG_HARDWARE_I2C_ENABLE=y" in destination.read_text()
+
+
+def test_wifi_browser_keeps_offline_profiles_unchanged(tmp_path, rootfs):
+    file = rootfs / "etc/NetworkManager/system-connections/Lab.nmconnection"
+    original = "[connection]\nid=Lab\nuuid=abc\ntype=wifi\n[wifi]\nssid=Lab\n[ipv4]\nmethod=auto\n"
+    file.write_text(original)
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook("wifi")
+        session.wait("Offline target")
+        session.send("\n")
+        session.wait("Saved Wi-Fi networks")
+        session.wait("Lab")
+        session.send("\n")
+        session.wait("UUID: abc")
+        session.send("\x1b")
+        session.send("\x1b")
+        session.send("\x1b")
+        session.send("q")
+        session.wait()
+    assert file.read_text() == original
 
 
 def test_onewire_gpio_can_be_edited_and_saved(tmp_path):

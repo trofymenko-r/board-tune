@@ -45,13 +45,15 @@ stage 9 needs concrete use-case requirements before selecting defaults.
 Backup/recovery work is a cross-cutting foundation, not a substitute for
 these functional milestones.
 
-Wi-Fi manager extension proposed on 2026-10-19, awaiting owner agreement:
+Wi-Fi manager extension approved on 2026-10-19:
 active connection/status, all saved profiles, on-board AP scanning, profile
 editing and guarded live connection changes. The current single-profile
 readback showed Sweet Home while wireless90-5G was active on Pi 5.
-See [interaction proposal](docs/wifi-manager-proposal.md). No runtime or
-configuration changes are included in this design step; stage 3's prior
-implementation/physical-verification status remains as recorded above.
+See [interaction plan](docs/wifi-manager-proposal.md). Increment 1 adds
+active-profile readback and a saved-profile/status browser in the existing
+menu. Pi 5 SSH inspection now imports wireless90-5G first and lists all
+three profiles without activation. Scanning/editing/forget and guarded
+live connection transactions are the following increments.
 
 ## Existing gaps to address alongside the stages
 
