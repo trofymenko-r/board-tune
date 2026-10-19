@@ -26,7 +26,7 @@ be inferred from the existing design.
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented; Pi 5 SSH-key login, locked password, sudo and repeat application verified |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
-| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | Primary I2C/SPI implemented and verified on Pi 5; remaining interfaces pending |
+| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI verified on Pi 5; GPIO 1-Wire implemented, physical check deferred; UARTs/overlays/Bluetooth pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
 | 7 | Logging/recovery: persistent/RAM journal, size limits, hardware watchdog | Pending |
@@ -143,5 +143,26 @@ adapters; the physical disable test exposed and corrected removal of that
 shared module's boot file.
 Original boot/module files were restored from backup after the test; actual
 bus transfers, camera image capture and Pi 4 hardware remain untested.
-Remaining stage-4 work: 1-Wire, additional UARTs, overlays/parameters and
+Remaining stage-4 work: additional UARTs, overlays/parameters and
 Bluetooth. Baud rates/additional I2C/SPI buses are not part of this milestone.
+
+## Stage 4: GPIO 1-Wire (2026-10-19)
+
+Implemented Keep/Enable/Disable managed overlay and BCM GPIO 2-27 (default 4)
+using the target's installed w1-gpio overlay. Replaces the managed master on
+GPIO changes, retains scope boundaries on disable, and reads inline or
+subsequent dtparam values. Reuses a matching external master without adding
+another; changing/disabling foreign configuration is refused. Unknown
+includes/filters, multiple masters and unsupported variants stay at Keep
+with diagnostics, and explicit changes require resolving the ambiguity.
+Known I2C/SPI pin conflicts and same-profile serial-console conflicts are
+checked; arbitrary HATs/overlays and electrical wiring require operator review.
+
+Automated checks cover rootfs edits, board filters/detection, repeat apply,
+dry-run, profile validation, external/ambiguous readback, missing overlay,
+pin conflicts and real terminal GPIO editing. No live pin/module commands
+are scheduled. Full suite: 207 passed, 1 root-only skip.
+Physical controller enumeration, sensor communication and
+offline-media boot remain pending: the owner currently has no test device.
+No changes or reboots are made on the owner's board for this milestone.
+Next functional milestone: additional UARTs.

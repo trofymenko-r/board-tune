@@ -99,6 +99,27 @@ def test_hardware_choices_can_be_edited_and_saved(tmp_path):
         assert "CONFIG_HARDWARE_I2C_ENABLE=y" in destination.read_text()
 
 
+def test_onewire_gpio_can_be_edited_and_saved(tmp_path):
+    with terminal(tmp_path, "CONFIG_HARDWARE=y\n") as (session, destination):
+        session.enter_hook("hardware")
+        session.wait("1-Wire")
+        session.send("jjj\n")
+        session.wait("Disable managed overlay")
+        session.send("j\n")
+        session.wait("1-Wire GPIO (BCM)")
+        session.send("j\n")
+        session.wait("1-Wire GPIO (BCM) (int)")
+        session.send("\x1517\n")
+        session.send("q")
+        session.wait("Keep changes and continue")
+        session.send("y")
+        session.wait()
+        assert session.process.returncode == 0
+        text = destination.read_text()
+        assert "CONFIG_HARDWARE_ONEWIRE_ENABLE=y" in text
+        assert "CONFIG_HARDWARE_ONEWIRE_GPIO=17" in text
+
+
 def test_terminal_edit_save_and_resize(tmp_path):
     with terminal(tmp_path, "CONFIG_SSH=y\nCONFIG_SSH_PORT=2200\n") as (session, destination):
         session.enter_hook("ssh")

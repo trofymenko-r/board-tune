@@ -36,10 +36,11 @@ def set_block(text: str, name: str, lines: list[str], *, at_end: bool = False) -
     position = None
     inside = False
     last = ""
+    previous = ""
     for line in text.splitlines():
         if line.strip() == begin:
             inside = True
-            last = ""
+            last = previous = ""
             if move and out and not out[-1].strip():
                 out.pop()
             position = len(out)
@@ -49,9 +50,11 @@ def set_block(text: str, name: str, lines: list[str], *, at_end: bool = False) -
                 if move and last.strip() == "[all]":
                     # Site lines originally followed the block's scope reset.
                     # Moving it must not put them under an earlier filter.
+                    if previous.strip() == "dtoverlay=":
+                        out.append("dtoverlay=")
                     out.append("[all]")
             else:
-                last = line
+                previous, last = last, line
         else:
             out.append(line)
     if inside:

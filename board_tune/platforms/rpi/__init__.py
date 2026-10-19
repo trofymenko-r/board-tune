@@ -50,7 +50,8 @@ class RaspberryPi(Platform):
         # board filters identify the model it was customized for.
         filters = set()
         starts = {f"# >>> board-tune: {name} >>>"
-                  for name in ("serial_console", "hardware_i2c", "hardware_spi")}
+                  for name in ("serial_console", "hardware_i2c", "hardware_spi",
+                               "hardware_onewire")}
         for directory in BOOT_DIRS:
             data = target.read(f"{directory}/config.txt")
             if data is None:
@@ -72,7 +73,8 @@ class RaspberryPi(Platform):
         return hardware.read(ctx, directory) if directory else {"HARDWARE": "n"}
 
     def setup_hardware(self, ctx):
-        if all(ctx.config.enabled(f"HARDWARE_{bus}_KEEP") for bus in ("I2C", "SPI")):
+        if all(ctx.config.enabled(f"HARDWARE_{bus}_KEEP")
+               for bus in ("I2C", "SPI", "ONEWIRE")):
             return
         hardware.setup(ctx, self.boot_dir(ctx))
 

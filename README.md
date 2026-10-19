@@ -322,8 +322,44 @@ Check attached hardware/pin usage before rebooting. SPI device overlays can
 claim chip selects instead of exposing spidev. The base parameter format and
 overlay-scope reset follow the
 [Raspberry Pi Device Tree documentation](https://www.raspberrypi.com/documentation/computers/configuration.html#dt-parameters).
-Additional buses, baud rates, 1-Wire, UARTs and Bluetooth follow in later
+Additional buses, baud rates, UARTs and Bluetooth follow in later
 hardware milestones.
+
+GPIO 1-Wire has Keep, Enable and Disable managed overlay actions in the same
+menu. Enable uses the installed `w1-gpio.dtbo` with one BCM-numbered GPIO
+(2-27, default 4; not physical header pin numbers):
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_ONEWIRE_ENABLE=y
+CONFIG_HARDWARE_ONEWIRE_GPIO=4
+```
+
+The model-filtered `hardware_onewire` block is backed up like other boot
+changes. Changing GPIO replaces its overlay rather than adding a second
+master. Disable removes the managed master and leaves an empty scope-reset
+block so later site directives retain their meaning. Keep changes nothing.
+No kernel modules are blacklisted or unloaded; other 1-Wire drivers remain
+available. Changes take effect at the next boot on SSH and offline targets.
+
+Readback supports one standard `w1-gpio`/`w1-gpio-pi5` overlay, including
+inline/colon parameters and subsequent dtparam lines. An existing external
+overlay with the requested GPIO is reused without duplication; changing its
+GPIO or disabling it requires explicitly editing that external configuration.
+Includes, conditional/multiple masters, unsupported parameters and the
+separate `w1-gpio-pullup` variant are reported as uncertain, and changes are
+refused until the ambiguity is resolved or Keep is selected. Other arbitrary
+overlays/HATs are not evaluated for hidden masters or GPIO usage.
+
+Known primary I2C/SPI pin conflicts and a serial console enabled in the same
+profile are rejected when configuring 1-Wire. Check other pin users and
+provide the pull-up wiring required by the attached device. The historical
+`pullup` overlay option is ignored by the standard overlay; this is not an
+external pull-up control. See the
+[official overlay reference](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm/boot/dts/overlays/README).
+Controller enumeration and actual device communication remain unverified
+until a physical-board check is available.
 
 ## Extending
 

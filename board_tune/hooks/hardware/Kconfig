@@ -2,7 +2,7 @@ config HARDWARE
 	bool "Configure hardware interfaces"
 	depends on PLATFORM_RPI
 	help
-	  Configure the primary header I2C and SPI0 buses at the next boot.
+	  Configure header I2C, SPI0 and GPIO 1-Wire at the next boot.
 	  Check connected hardware and GPIO assignments before enabling them.
 
 if HARDWARE
@@ -46,5 +46,35 @@ config HARDWARE_SPI_DISABLE
 	  Disable the primary SPI bus. Additional SPI buses are preserved.
 
 endchoice
+
+choice
+	prompt "1-Wire"
+	default HARDWARE_ONEWIRE_KEEP
+
+config HARDWARE_ONEWIRE_KEEP
+	bool "Keep current"
+
+config HARDWARE_ONEWIRE_ENABLE
+	bool "Enable"
+	help
+	  Use the standard w1-gpio overlay. Check pin usage and the device's
+	  pull-up wiring. No runtime GPIO changes are made.
+
+config HARDWARE_ONEWIRE_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove board-tune's 1-Wire overlay. External overlays are preserved;
+	  remove their configuration explicitly before disabling here.
+
+endchoice
+
+config HARDWARE_ONEWIRE_GPIO
+	int "1-Wire GPIO (BCM)"
+	depends on HARDWARE_ONEWIRE_ENABLE
+	range 2 27
+	default 4
+	help
+	  Use BCM GPIO numbers, not physical header pin numbers.
+	  GPIO 0/1 are reserved for HAT identification and are not offered.
 
 endif

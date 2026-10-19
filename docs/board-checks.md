@@ -112,6 +112,33 @@ other buses remain. Keep must preserve all files; no runtime commands should
 appear in the preview. File restore followed by reboot should recover the
 original boot/module configuration.
 
+### GPIO 1-Wire (deferred: no test device as of 2026-10-19)
+
+Choose a free BCM GPIO (default 4, physical header pin 7), and check wiring
+and pull-up requirements for the actual device before connecting it. Use:
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_ONEWIRE_ENABLE=y
+CONFIG_HARDWARE_ONEWIRE_GPIO=4
+```
+
+Preview/apply, record the backup ID and reboot the test installation.
+Check `/sys/bus/w1/devices/w1_bus_master*` for controller enumeration. Without
+a sensor this does not establish working communication. With a known device,
+confirm its family/ID directory and a valid reading through that device's
+driver (for a temperature sensor, inspect `w1_slave` and its CRC). Repeat the
+profile and expect no changes. Test changing to another free GPIO, then
+Disable managed overlay and reboot; the managed master should disappear
+while other bus/device drivers remain. Restore the original boot file when
+finished. An external overlay must be edited explicitly before GPIO changes
+or disablement; it is never silently removed or duplicated.
+
+Controller enumeration, electrical behavior and sensor readings have not
+been checked on a board for this milestone. Automated rootfs/live-plan tests
+do not replace that check.
+
 ## Recovery
 
 Record the printed backup ID. Use `--list-backups`, inspect a
