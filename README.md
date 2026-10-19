@@ -398,8 +398,17 @@ changing its flow-control setting or disabling it requires explicitly editing
 its configuration. Readback accepts inline/colon and subsequent dtparam
 ctsrts values. Unknown parameters (including RS485), multiple overlays,
 conditional/includes and external base-dtb UART controls are not silently
-rewritten. Generic Pi 5 `uartN` names stay uncertain because their target
-firmware overlay_map is not evaluated.
+rewritten. Generic Pi 5 `uartN` names are accepted only when that target's
+`overlay_map.dtb` explicitly maps them to the matching `uartN-pi5` overlay.
+Missing, malformed or incompatible maps leave those names uncertain; parsing
+runs on this computer without target executables or an extra dtc dependency.
+Known base UART controls remain external, so a legacy UART0 can be preserved
+while an independent UART is configured.
+
+CTS/RTS enablement is emitted as the `ctsrts` flag; disablement omits it.
+On Pi 5, even `ctsrts=off` reserves flow-control pins because that overlay
+override acts on presence. Readback accounts for this and reapplying an older
+managed profile with CTS/RTS disabled removes the flag completely.
 
 Validation checks known primary I2C/SPI, GPIO 1-Wire and other UART pin
 conflicts, including ports left at Keep. Primary kernel-console and enabled
@@ -413,8 +422,10 @@ overlays/HAT pin use still requires operator review.
 No live overlays, getty restarts, device access or termios changes run.
 Baud rate, parity and runtime hardware flow control belong to the application;
 the CTS/RTS option reserves the pins at boot. Check runtime tty-to-controller
-mapping before opening a port, particularly on Pi 4. Real enumeration,
-loopback, flow control and attached-device communication remain pending.
+mapping before opening a port, particularly on Pi 4. Pi 5 enumeration,
+pinmux and internal loopback results are recorded in
+[docs/board-checks.md](docs/board-checks.md); external wiring and attached-device
+communication remain pending.
 
 ## Extending
 

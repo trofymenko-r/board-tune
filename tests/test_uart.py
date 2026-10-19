@@ -52,7 +52,8 @@ def test_each_uart_enable_flow_disable_roundtrip(conf, rootfs, target, tmp_path,
     apply(conf, target)
     name = f"uart{port}" + ("-pi5" if board == "RPI5" else "")
     assert path.read_text().startswith(original)
-    assert f"[{board.replace('RPI', 'pi')}]\ndtoverlay={name},ctsrts={'on' if flow else 'off'}" in path.read_text()
+    directive = f"dtoverlay={name}" + (",ctsrts" if flow else "")
+    assert f"[{board.replace('RPI', 'pi')}]\n{directive}\ndtoverlay=" in path.read_text()
     assert apply(conf, target).changes() == []
     imported, _ = read(target, tmp_path)
     assert imported.config.enabled(f"BOARD_{board}")
@@ -61,6 +62,7 @@ def test_each_uart_enable_flow_disable_roundtrip(conf, rootfs, target, tmp_path,
     configure(conf, f"HARDWARE_UART{port}_DISABLE=y")
     apply(conf, target)
     assert f"dtoverlay={name}," not in path.read_text()
+    assert f"dtoverlay={name}\n" not in path.read_text()
     assert "dtoverlay=vc4-kms-v3d" in path.read_text()
     assert apply(conf, target).changes() == []
     imported, _ = read(target, tmp_path)
@@ -83,8 +85,8 @@ def test_multiple_uarts_and_independent_changes(conf, target, rootfs):
     configure(conf, "HARDWARE_UART0_KEEP=y", "HARDWARE_UART2_CTSRTS=y", "HARDWARE_UART4_DISABLE=y")
     apply(conf, target)
     text = (rootfs / "boot/firmware/config.txt").read_text()
-    assert "dtoverlay=uart0-pi5,ctsrts=off" in text
-    assert "dtoverlay=uart2-pi5,ctsrts=on" in text
+    assert "dtoverlay=uart0-pi5\n" in text
+    assert "dtoverlay=uart2-pi5,ctsrts\n" in text
     assert "dtoverlay=uart4-pi5" not in text
     assert apply(conf, target).changes() == []
 
@@ -106,6 +108,51 @@ def test_external_overlay_reused_but_not_rewritten(conf, target, rootfs, tmp_pat
     with pytest.raises(Error, match="external overlay"):
         build_plan(Registry.load(), conf.config, target)
     assert path.read_text() == text
+
+
+def test_target_mapping_allows_legacy_uart0_and_base_control_to_stay(conf, rootfs, target):
+    from .test_overlaymap import make_map
+
+    path = rootfs / "boot/firmware/config.txt"
+    original = "dtoverlay=uart0\ndtparam=uart0=on\ndtoverlay=custom-camera,cam0\n"
+    path.write_text(original)
+    (rootfs / "boot/firmware/overlays/overlay_map.dtb").write_bytes(make_map())
+    configure(conf, "BOARD_RPI5=y", "HARDWARE_UART2_ENABLE=y", "HARDWARE_UART2_CTSRTS=y")
+    apply(conf, target)
+    assert path.read_text().startswith(original)
+    assert "dtoverlay=uart2-pi5,ctsrts\n" in path.read_text()
+    assert apply(conf, target).changes() == []
+
+
+def test_verified_external_alias_is_imported_and_reused(conf, rootfs, target):
+    from .test_overlaymap import make_map
+
+    path = rootfs / "boot/firmware/config.txt"
+    original = "dtoverlay=uart2,ctsrts\n"
+    path.write_text(original)
+    (rootfs / "boot/firmware/overlays/overlay_map.dtb").write_bytes(
+        make_map((("uart2", "bcm2712", b"uart2-pi5\0"),)))
+    registry = Registry.load()
+    conf.read_target(registry, target, registry.platforms[0].boards[1])
+    assert conf.config.enabled("HARDWARE_UART2_ENABLE")
+    assert conf.config.enabled("HARDWARE_UART2_CTSRTS")
+    assert build_plan(registry, conf.config, target, {"ssh", "serial_console"}).changes() == []
+    assert path.read_text() == original
+
+
+def test_pi5_ctsrts_false_value_is_still_present_and_migrates(conf, target, rootfs):
+    path = rootfs / "boot/firmware/config.txt"
+    path.write_text("# >>> board-tune: hardware_uart4 >>>\n[all]\n[pi5]\n"
+                    "dtoverlay=uart4-pi5,ctsrts=off\ndtoverlay=\n[all]\n"
+                    "# <<< board-tune: hardware_uart4 <<<\n")
+    registry = Registry.load()
+    conf.read_target(registry, target)
+    assert conf.config.enabled("HARDWARE_UART4_CTSRTS")
+    configure(conf, "HARDWARE_UART4_CTSRTS=n")
+    apply(conf, target)
+    assert "dtoverlay=uart4-pi5\n" in path.read_text()
+    assert "ctsrts" not in path.read_text()
+    assert apply(conf, target).changes() == []
 
 
 @pytest.mark.parametrize("text", [

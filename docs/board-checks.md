@@ -139,7 +139,7 @@ Controller enumeration, electrical behavior and sensor readings have not
 been checked on a board for this milestone. Automated rootfs/live-plan tests
 do not replace that check.
 
-### Additional UARTs (physical check pending)
+### Additional UARTs (Pi 5 results below; external wiring check pending)
 
 Choose the correct controller and free TX/RX GPIOs from the table in README.
 GPIO 0/1 overlap HAT identification; CTS/RTS needs two further free pins.
@@ -164,8 +164,9 @@ control enabled. A tty entry alone is not a successful communication test.
 Disable the managed overlay, reboot, and verify it is absent while other
 ports remain configured. Restore original boot files when finished. External
 overlays/base parameters must be resolved explicitly before changing that
-port. Physical enumeration, data exchange, flow control and console/Bluetooth
-preservation have not yet been checked on a board for this milestone.
+port. Pi 5 enumeration, pinmux, internal loopback and retained peripheral
+bindings are covered by the recorded result below. External TX/RX and
+CTS/RTS wiring, Pi 4 and booting offline media still need separate checks.
 
 ## Recovery
 
@@ -230,3 +231,48 @@ This establishes controller/device enumeration, not communication with an
 attached I2C/SPI peripheral. `rpicam-hello --list-cameras` reported no cameras
 before any change; image capture through the custom MIPI driver was not tested.
 Pi 4 hardware and booting offline media still require their own checks.
+
+### 2026-10-19: UART1-4 on Raspberry Pi 5
+
+Pi 5 Model B Rev 1.1, Debian 12, kernel 6.12.96+rpt-rpi-2712, SSH as `mipi`.
+Initial config had generic `dtoverlay=uart0`, `dtparam=uart0=on`,
+`db-mipi-a1,cam0`, ttyAMA0 on the header and serial0/getty on ttyAMA10.
+GPIO 0-13 were unused; UART0 owned 14/15. The owner had confirmed free header
+pins and no UART peripherals were attached for this test.
+
+- First preview exposed the unsupported generic alias/base-control combination.
+  Added bounded FDT v17 reading of the target's overlay_map.dtb. Its exact
+  bcm2712 mappings verified uart0-4 aliases; legacy UART0 remained unchanged.
+- Initial enablement produced UART1-3 but UART4 failed binding: its generated
+  `ctsrts=off` still requested GPIO 14/15, already owned by UART0. Confirmed
+  this in kernel pinctrl errors, the installed overlay override and live DT.
+  Fixed disabled flow control to omit the parameter, then reapplied/rebooted.
+- UART1-4 appeared as ttyAMA1-4, verified against their RP1 of_node bindings
+  and Device Tree aliases. Pinmux showed TX/RX for all four, CTS/RTS for
+  UART1-3, and preserved UART0 TX/RX. UART4 flow control was correctly refused
+  in a dry-run because it overlaps UART0.
+- Used PL011 internal loopback via TIOCM_LOOP, after verifying the loop bit
+  before sending bytes. Every port echoed a 1024-byte binary pattern exactly
+  at 9600, 115200 and 921600 baud, 8N1. UART1-3 also passed a 1024-byte exchange
+  at 115200 with CRTSCTS enabled: 15 exchanges, 15360 bytes in total.
+  The script restored termios/modem settings in finally blocks. This tests
+  controller/driver loopback; it does not test external signal wiring.
+- Disabling CTS/RTS, then rebooting, released GPIO 2/3, 6/7 and 10/11 while
+  all four tty devices remained. Disabling managed UART1-4 and rebooting
+  removed those tty devices; ttyAMA0 and ttyAMA10 stayed present. Same-profile
+  application returned Nothing to change before/after reboot and after each
+  transition. Real-target readback imported enabled ports and flow settings.
+- Camera video/media nodes, camera I2C client names/driver bindings, I2C/SPI
+  controllers, Bluetooth hci enumeration, active Bluetooth/getty services,
+  serial0 binding and kernel-command-line file matched the initial snapshot.
+- Restored original config.txt from `20261019T193651Z-91c219c47e78`; safety
+  backup `20261019T194247Z-74ce01f1e7eb` retains the disabled managed state.
+  Verified exact file bytes/mode/UID/GID and GPIO 0-17 against the baseline.
+  No additional reboot followed file restore: the already-disabled runtime
+  matched the original header state. Backups remain available for review.
+
+External jumper/peripheral TX/RX and CTS/RTS handshakes, camera image capture,
+Bluetooth pairing, primary-console electrical communication, Pi 4 and
+offline-media boot were not exercised. The driver's internal loopback support
+is documented in the
+[PL011 kernel source](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/tty/serial/amba-pl011.c).

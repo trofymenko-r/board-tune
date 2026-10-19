@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from board_tune.errors import Error
 
-from . import configtxt
+from . import configtxt, overlaymap
 
 # BCM GPIOs: TX, RX, CTS, RTS. UART numbers are controller IDs, not tty names.
 PINS = {
@@ -34,18 +34,21 @@ class Instance:
     flow: bool = False
     certain: bool = True
     base: bool = False
+    presence_flow: bool = False
 
     def parameters(self, text):
         for part in filter(None, text.split(",")):
             key, sep, value = part.strip().partition("=")
             value = value.lower() if sep else "on"
             if key == "ctsrts" and value in ON | OFF:
-                self.flow = value in ON
+                # Pi 5's override appends a pinctrl phandle whenever present;
+                # even ctsrts=off enables those pins. Pi 4 uses a boolean fragment.
+                self.flow = self.presence_flow or value in ON
             else:
                 self.certain = False
 
 
-def scan(text, board):
+def scan(text, board, aliases=None):
     instances, disabled = [], set()
     model, conditional, includes = True, False, False
     managed, current = None, None
@@ -79,17 +82,24 @@ def scan(text, board):
             match = re.fullmatch(r"uart([0-5])(-pi5)?", name)
             if match and int(match[1]) in PINS[board.id]:
                 port = int(match[1])
-                # Pi 5 uses explicit variants. Generic names depend on the
-                # target's firmware overlay_map, which is not evaluated here.
-                variant = bool(match[2]) == (board.id == "RPI5")
-                current = Instance(port, managed == port, certain=variant and not conditional)
+                # Generic Pi 5 names are accepted only with a verified mapping
+                # in this target's firmware; never infer it from host firmware.
+                variant = (bool(match[2]) == (board.id == "RPI5")
+                           or (aliases or {}).get(name) == f"uart{port}-pi5")
+                current = Instance(port, managed == port, certain=variant and not conditional,
+                                   presence_flow=board.id == "RPI5")
                 current.parameters(params)
                 instances.append(current)
         elif model and line.startswith(("dtparam=", "device_tree_param=")):
+            parts = line.partition("=")[2].split(",")
             if current:
                 current.certain &= not conditional
-                current.parameters(line.partition("=")[2])
-            for part in line.partition("=")[2].split(","):
+                # Known base-dtb UART controls fall back to the base tree;
+                # they are not unsupported parameters of the current overlay.
+                overlay_params = [part for part in parts if not re.fullmatch(
+                    r"uart[0-5]|uart0_console|uart0_dma", part.strip().partition("=")[0])]
+                current.parameters(",".join(overlay_params))
+            for part in parts:
                 key = part.strip().partition("=")[0]
                 match = re.fullmatch(r"uart([0-5])", key)
                 if match and int(match[1]) in PINS[board.id]:
@@ -99,7 +109,8 @@ def scan(text, board):
 
 
 def read(ctx, directory):
-    instances, disabled, includes = scan(ctx.plan.read_text(f"{directory}/config.txt") or "", ctx.board)
+    aliases = overlaymap.uart_aliases(ctx.plan.read(f"{directory}/overlays/overlay_map.dtb"), ctx.board)
+    instances, disabled, includes = scan(ctx.plan.read_text(f"{directory}/config.txt") or "", ctx.board, aliases)
     values = {}
     for port in PINS[ctx.board.id]:
         found = [item for item in instances if item.port == port]
@@ -160,7 +171,8 @@ def setup(ctx, directory):
     cfg, plan = ctx.config, ctx.plan
     path = f"{directory}/config.txt"
     text = plan.read_text(path)
-    instances, _, includes = scan(text, ctx.board)
+    aliases = overlaymap.uart_aliases(plan.read(f"{directory}/overlays/overlay_map.dtb"), ctx.board)
+    instances, _, includes = scan(text, ctx.board, aliases)
     changing = has_actions(ctx)
     if changing and includes:
         raise Error("UART: resolve config.txt includes before changing UARTs, or select Keep")
@@ -199,7 +211,9 @@ def setup(ctx, directory):
             overlay = ctx.target.stat(ctx.target.realpath(f"{directory}/overlays/{name}.dtbo"))
             if overlay is None or overlay.kind != "file":
                 raise Error(f"UART{port}: {name}.dtbo is not installed in target boot overlays")
-            lines = [f"dtoverlay={name},ctsrts={'on' if flow else 'off'}", "dtoverlay="]
+            # Omission is the portable disabled state: Pi 5 ignores a false
+            # value when the presence-based ctsrts override is supplied.
+            lines = [f"dtoverlay={name}" + (",ctsrts" if flow else ""), "dtoverlay="]
             effective[port] = flow
         else:
             lines = ["dtoverlay="]

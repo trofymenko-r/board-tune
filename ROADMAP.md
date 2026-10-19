@@ -26,7 +26,7 @@ be inferred from the existing design.
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented; Pi 5 SSH-key login, locked password, sudo and repeat application verified |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
-| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI verified on Pi 5; 1-Wire/UART implemented, physical checks deferred; overlays/Bluetooth pending |
+| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI and UART1-4 internal loopback verified on Pi 5; 1-Wire/external UART wiring pending; overlays/Bluetooth pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
 | 7 | Logging/recovery: persistent/RAM journal, size limits, hardware watchdog | Pending |
@@ -173,7 +173,7 @@ Implemented per-port Keep/Enable/Disable managed overlay plus CTS/RTS for
 Pi 4 UART2-5 and Pi 5 UART0-4. Model-specific installed overlays are required;
 readback covers inline/colon/subsequent dtparam flow settings, reuses matching
 external configuration, and reports unresolved settings rather than rewriting
-them. Base-dtb controls, generic Pi 5 overlay-map aliases, RS485/custom
+them. Base-dtb controls, unverified Pi 5 overlay-map aliases, RS485/custom
 parameters, multiple/conditional overlays and includes need explicit resolution.
 
 Validated known GPIO conflicts with I2C/SPI, 1-Wire, other UARTs and the
@@ -187,6 +187,37 @@ Tests exercise every supported port with/without CTS/RTS, repeat apply,
 readback, disable, board detection, profile dependencies, old boot paths,
 missing overlays, dry-run, live plans, GPIO/console/getty guards and terminal
 menu editing. Full suite: 255 passed, 1 root-only skip.
-Hardware enumeration, loopback/CTS/RTS and offline-media boot
-remain unverified; the owner's board is not changed in this milestone.
+The initial implementation left the owner's board unchanged; subsequent
+Pi 5 hardware results and fixes are recorded below. External wiring, Pi 4
+and offline-media boot remain unverified.
 Next functional milestone: Device Tree overlays and parameters, then Bluetooth.
+
+## Pi 5 UART verification (2026-10-19)
+
+Tested on the owner's Pi 5/Debian 12, kernel 6.12.96+rpt-rpi-2712. Preserved
+legacy UART0, the debug-console UART10 and the custom MIPI0 camera overlay.
+
+- Added target overlay_map.dtb reading after the real configuration exposed
+  rejection of generic uart0 plus dtparam=uart0=on. Accept aliases only with
+  an exact bcm2712 mapping in a valid supported FDT; known base controls stay
+  external and no longer invalidate an unrelated current overlay.
+- Fixed Pi 5 CTS/RTS generation: ctsrts=off still adds flow-control pinctrl.
+  This caused UART4 to fail binding against existing UART0 on GPIO 14/15.
+  Now disablement omits the flag, readback reflects Pi 5 presence semantics,
+  and old managed blocks are migrated on reapplication.
+- UART1-4 appeared with the expected RP1 bindings and pinmux after reboot;
+  UART1-3 had CTS/RTS while UART4 retained only TX/RX. Internal PL011 loopback
+  passed 1024-byte patterns on each port at 9600, 115200 and 921600 baud.
+  UART1-3 also passed internal loopback with CRTSCTS at 115200 baud.
+- CTS/RTS removal released its GPIOs after reboot without losing tty devices.
+  Explicit UART4 CTS/RTS was correctly refused due to existing UART0. Disable
+  removed UART1-4 after reboot, preserving UART0 and UART10. Repeat apply
+  was a no-op before/after reboot and for each configuration transition.
+- Camera/media/I2C/SPI/Bluetooth enumeration, active services and console
+  binding matched the initial snapshot. Original config.txt content/metadata
+  and GPIO 0-17 state were restored exactly after the tests.
+
+Full automated suite: 276 passed, 1 root-only skip; native dtc output is
+accepted by the alias reader. External TX/RX and CTS/RTS wires, attached
+devices, camera image capture, Pi 4 and offline-media boot remain untested.
+Detailed results and backup IDs are in docs/board-checks.md.
