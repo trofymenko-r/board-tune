@@ -142,3 +142,80 @@ def test_scan_groups_ap_variants_and_escaped_ssids(target, monkeypatch):
     assert len(grouped) == 2 and len(grouped[0]) == 2
     assert grouped[0][0].ssid == 'Lab:WiFi'
     assert grouped[0][0].bssid == 'AA:BB:CC:DD:EE:01'
+
+
+def test_matching_keeps_security_and_adapter_separate():
+    profiles = [wifi.Profile('a', 'PSK', 'Lab', '', 'wpa-psk'),
+                wifi.Profile('b', 'Open', 'Lab', 'wlan0', 'open'),
+                wifi.Profile('c', 'Other adapter', 'Lab', 'wlan1', 'open')]
+    ap = wifi.AccessPoint('Lab', '--', 50, '2412 MHz', '00:11:22:33:44:55', '1')
+    assert [p.uuid for p in wifi.matching(profiles, ap, 'wlan0')] == ['b']
+    ap.security = 'WPA2'
+    assert [p.uuid for p in wifi.matching(profiles, ap, 'wlan0')] == ['a']
+    assert wifi.band('2412 MHz') == '2.4 GHz' and wifi.band('5765 MHz') == '5 GHz'
+
+
+def test_live_finish_consumes_only_selected_profile_draft(saved, target):
+    saved('A', 'a')
+    saved('B', 'b')
+    session = wifi.Session(target)
+    a, b = wifi.inventory(target)
+    session.save(wifi.Editor.from_profile(a), a)
+    session.save(wifi.Editor.from_profile(b), b)
+    tx = wifi.LiveTransaction(session, a, 'wlan0')
+    tx.directory = '/run/absent-test-job'
+    tx.finish({'state': 'kept'})
+    assert a.path not in session.edits and b.path in session.edits
+
+
+def test_open_profile_omits_security_section_including_legacy_reference(saved, target):
+    path = saved('Lab', 'lab')
+    path.write_text(path.read_text().replace('ssid=Lab', 'ssid=Lab\nsecurity=wifi-security'))
+    profile = wifi.inventory(target)[0]
+    editor = wifi.Editor.from_profile(profile)
+    editor.auth = 'open'
+    _, text = editor.render(profile)
+    assert '[wifi-security]' not in text and 'psk=' not in text and 'security=' not in text
+    _, new = wifi.Editor(ssid='Open', auth='open').render()
+    assert '[wifi-security]' not in new
+
+
+def test_editing_priority_preserves_dhcp_dns_and_pmf(saved, target):
+    path = saved('Lab', 'lab')
+    path.write_text(path.read_text().replace('method=auto', 'method=auto\ndns=1.1.1.1;9.9.9.9;')
+                    .replace('psk=private-key', 'psk=private-key\npmf=3'))
+    profile = wifi.inventory(target)[0]
+    editor = wifi.Editor.from_profile(profile)
+    editor.priority = 200
+    _, text = editor.render(profile)
+    assert 'dns=1.1.1.1;9.9.9.9;' in text and 'pmf=3' in text
+
+
+def test_cli_dry_run_previews_wifi_drafts_without_writing(rootfs, monkeypatch):
+    from types import SimpleNamespace
+    from board_tune import cli
+    from board_tune.wifi_menu import WifiManager
+    def menu(conf):
+        assert conf.dry_run
+        manager = WifiManager(conf.target, allow_live=not conf.dry_run)
+        messages = []
+        manager.dialog = SimpleNamespace(message=lambda *args: messages.append(args))
+        assert not manager.live(wifi.Profile('uuid', 'Lab', 'Lab', 'wlan0', 'open'))
+        assert messages[0][0] == 'Dry run'
+        manager.session.save(wifi.Editor(ssid='Lab', auth='open'))
+        conf.wifi_manager = manager
+        return True
+    monkeypatch.setattr(cli, '_require_tty', lambda what: None)
+    monkeypatch.setattr(Configuration, 'menu', menu)
+    assert cli.main([str(rootfs), '--dry-run']) == 0
+    assert not list((rootfs / 'etc/NetworkManager/system-connections').glob('*.nmconnection'))
+    assert not (rootfs / 'var/backups/board-tune').exists()
+
+
+@pytest.mark.parametrize('radio, reason', [('disabled:enabled', 'radio is disabled'),
+                                           ('enabled:disabled', 'blocked by hardware')])
+def test_scan_distinguishes_radio_block_from_empty_results(target, monkeypatch, radio, reason):
+    target.live = True
+    monkeypatch.setattr(target, 'run', lambda argv, input=None: radio)
+    with pytest.raises(Exception, match=reason):
+        wifi.scan(target, 'wlan0')

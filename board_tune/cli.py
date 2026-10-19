@@ -199,6 +199,7 @@ def run(args: argparse.Namespace) -> int:
                 conf.set(assignment)
 
         if interactive:
+            conf.dry_run = args.dry_run
             for problem in conf.problems():
                 _warn(problem)
             if not conf.menu():

@@ -92,6 +92,7 @@ class Configuration:
     def __init__(self, registry: Registry, workdir: str):
         self._workdir = workdir
         self.target = None
+        self.dry_run = False
         kconfig = os.path.join(workdir, "Kconfig")
         with open(kconfig, "w") as f:
             f.write(generate_kconfig(registry))
@@ -192,7 +193,7 @@ class Configuration:
             actions = {}
             if self.target is not None:
                 from board_tune.wifi_menu import WifiManager
-                self.wifi_manager = WifiManager(self.target)
+                self.wifi_manager = WifiManager(self.target, allow_live=not self.dry_run)
                 def open_wifi(ui):
                     previous = dict(self.wifi_manager.session.edits)
                     legacy = self.wifi_manager.show(ui)

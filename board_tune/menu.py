@@ -228,7 +228,7 @@ class _KernelStyle:
         if key == "\n" and self.button:
             key = ("\n", "\x1b", "?", "s", "o")[self.button]
             self.button = 0
-        if key in ("\n", "l", "L") and ui._shown:
+        if key in ("\n", "l", "L", " ") and ui._shown:
             node = ui._shown[ui._sel_node_i]
             action = self.actions.get(node.prompt[0]) if node.prompt else None
             if action is not None:

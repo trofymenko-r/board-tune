@@ -303,3 +303,49 @@ Profile edit/forget behavior is tested on disposable rootfs fixtures,
 including backup restoration, duplicate SSIDs, external concurrent edits,
 secret redaction and discarding a forget draft in a real PTY. The board's
 saved profiles were not modified for these checks.
+
+## Wi-Fi manager live transactions (2026-10-19)
+
+Pi 5 / NetworkManager 1.42.4, with the controller connected through
+Ethernet end0 at 192.168.0.11. wlan0's original profile was wireless90-5G,
+UUID 9ef99d92-7e32-42d7-a18c-7a16e36b098c, IP 192.168.1.156/24.
+
+- Native per-wlan0 checkpoint creation/destruction passed before activation.
+- Activating/keeping the existing profile passed without changing its files.
+- A temporary profile with a new UUID, stored key, autoconnect disabled and
+  priority -999 associated with the same AP. Closing its SSH controller
+  without confirmation exercised the independent worker timeout: old
+  runtime/profile returned, the new profile was removed, status was reverted.
+- A second temporary profile passed explicit Keep. Forgetting that active
+  profile followed by Revert restored both its bytes and active connection.
+  Repeating Forget with Keep removed only the temporary profile. The initial
+  profile was explicitly reactivated over Ethernet afterward.
+- A random nonexistent open SSID timed out activation after 25 seconds,
+  reported the NetworkManager failure, removed its trial profile and
+  restored the original connection. This check first exposed NM silently
+  ignoring an empty wifi-security section; open profile rendering now omits
+  that section and legacy security references, with a regression test.
+- Compared all three original profile paths, exact contents, permissions,
+  owner/group and active UUID after restoration. They matched the baseline.
+  Ethernet SSH stayed available. Temporary requests/scripts are private
+  under /run; request credentials are removed by the worker on completion.
+- A real SSH PTY opened status, all saved UUIDs, the Forget action and fresh
+  AP results, then exited with Nothing to change. Offline PTY tests verify
+  masked password input, cancellation, discarding a forget draft and applying
+  a forget draft only after the normal preview/confirmation.
+
+Retained file backup IDs include 20261019T204449Z-7f63c6b882b9 (timeout),
+20261019T204554Z-d2bce737d7f8 (keep), 20261019T204607Z-9840c6ffe374 (forget/
+revert), 20261019T204608Z-b4ab2d780d54 (forget/keep), and
+20261019T204821Z-817403a1e62a (unavailable AP). Private backups intentionally
+retain the recoverable profile data.
+
+Wrong-password authentication against the real AP, hidden-AP association,
+regulatory/radio boot changes, lack of Internet, and loss of a session
+actually transported over Wi-Fi remain unverified. Controller disappearance
+was tested with independent Ethernet access, not Wi-Fi SSH address migration.
+
+Final inspection found exactly the three original Wi-Fi profiles, the original
+active UUID, no outstanding checkpoints and no request.json credential files.
+DHCP assigned wlan0 192.168.1.157/24 after reconnection; Ethernet SSH remains
+192.168.0.11/24. Restoring a DHCP profile does not pin its former lease address.

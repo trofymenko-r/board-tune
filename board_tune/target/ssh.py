@@ -27,7 +27,9 @@ class SSHTarget(ShellTarget):
         self.description = f"ssh {destination}"
         self._dest = destination
         self._tmp = tempfile.mkdtemp(prefix="board-tune-ssh-")
-        self._ssh = ["ssh", "-o", f"ControlPath={self._tmp}/master"]
+        self._ssh = ["ssh", "-o", f"ControlPath={self._tmp}/master",
+                     "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
+                     "-o", "ServerAliveCountMax=2"]
         self._sudo = False
         try:
             self._connect()
@@ -73,6 +75,23 @@ class SSHTarget(ShellTarget):
     def run(self, argv, input=None):
         proc = self._sh(_RUN, *argv, input=input or b"")
         return self._check(proc, f"{shlex.join(argv)} failed").stdout.decode()
+
+    def access_interface(self):
+        """Find the board interface carrying this SSH session, when available."""
+        import ipaddress
+        import re
+
+        connection = self._remote(["sh", "-c", 'printf "%s" "$SSH_CONNECTION"']).stdout.decode().split()
+        if len(connection) != 4:
+            return None
+        try:
+            client = str(ipaddress.ip_address(connection[0]))
+            server = str(ipaddress.ip_address(connection[2]))
+        except ValueError:
+            return None
+        route = self.run(["ip", "route", "get", client, "from", server])
+        match = re.search(r"\bdev (\S+)", route)
+        return match[1] if match else None
 
     def close(self):
         subprocess.run(self._ssh + ["-O", "exit", self._dest],

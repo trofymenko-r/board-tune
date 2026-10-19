@@ -61,10 +61,11 @@ class Profile:
     priority: int = 0
     autoconnect: bool = True
     mode: str = "infrastructure"
+    valid_ssid: bool = True
 
     @property
     def editable(self):
-        return (self.path.startswith(PROFILE_DIRS[0] + "/")
+        return (self.valid_ssid and self.path.startswith(PROFILE_DIRS[0] + "/")
                 and self.mode == "infrastructure" and self.auth in ("open", "wpa-psk", "sae"))
 
 
@@ -83,6 +84,9 @@ def inventory(target, notes=None):
             if filename.startswith(".") or filename.endswith(("~", ".bak")):
                 continue
             path = f"{directory}/{filename}"
+            info = target.stat(path)
+            if info is None or info.kind not in ('file', 'link'):
+                continue
             text = (target.read(path) or b"").decode(errors="replace")
             data = _sections(text)
             connection = data.get("connection", {})
@@ -99,12 +103,13 @@ def inventory(target, notes=None):
                 priority = int(_first(connection, "autoconnect-priority", "0"))
             except ValueError:
                 priority = 0
+            ssid = _ssid(_first(wifi, 'ssid'))
             found[key] = Profile(identifier, _unescape(_first(connection, "id", filename)),
-                                 _ssid(_first(wifi, "ssid")) or "<non-UTF8 SSID>",
+                                 ssid or "<non-UTF8 SSID>",
                                  _first(connection, "interface-name"), _first(security, "key-mgmt", "open"),
                                  path, text, active.get(identifier, ""), priority,
                                  _first(connection, "autoconnect", "true").lower() not in ("false", "no", "0"),
-                                 _first(wifi, "mode", "infrastructure"))
+                                 _first(wifi, "mode", "infrastructure"), valid_ssid=ssid is not None)
     # Include daemon-only profiles too, without requesting any secrets.
     if available(target):
         try:
@@ -113,7 +118,7 @@ def inventory(target, notes=None):
                 row = fields(line)
                 if len(row) != 4 or row[2] not in ("wifi", "802-11-wireless") or row[1] in found:
                     continue
-                ssid = nmcli(target, "-g", "802-11-wireless.ssid", "connection", "show", "uuid", row[1]).strip()
+                ssid = fields(nmcli(target, "-g", "802-11-wireless.ssid", "connection", "show", "uuid", row[1]).rstrip('\n'))[0]
                 found[row[1]] = Profile(row[1], row[0], ssid, "", "unknown", active=active.get(row[1], ""))
         except Error:
             notes.append("NetworkManager profile inventory incomplete; saved files remain visible")
@@ -126,6 +131,13 @@ def device_status(target, iface):
     output = nmcli(target, "-f", "GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS",
                    "device", "show", iface)
     return ["  ".join(fields(line)) for line in output.splitlines() if line]
+
+
+def radio_status(target):
+    if not target.live:
+        return 'Offline: radio status unavailable'
+    row = fields(nmcli(target, '-f', 'WIFI,WIFI-HW', 'general', 'status').strip())
+    return f'Radio: {row[0]}; hardware: {row[1]}' if len(row) == 2 else 'Radio status unavailable'
 
 
 @dataclass
@@ -142,6 +154,13 @@ class AccessPoint:
 def scan(target, iface, rescan=True):
     if not target.live:
         raise Error('Scanning is unavailable for an offline target')
+    if rescan:
+        radio = fields(nmcli(target, '-f', 'WIFI,WIFI-HW', 'general', 'status').strip())
+        if len(radio) == 2:
+            if radio[1] != 'enabled':
+                raise Error('Wi-Fi is blocked by hardware; an empty scan does not mean there are no networks')
+            if radio[0] != 'enabled':
+                raise Error('The Wi-Fi radio is disabled in NetworkManager; enable it before scanning')
     output = nmcli(target, '-f', 'IN-USE,SSID,SIGNAL,SECURITY,FREQ,BSSID,CHAN',
                    'device', 'wifi', 'list', 'ifname', iface,
                    '--rescan', 'yes' if rescan else 'no', wait=15)
@@ -163,6 +182,24 @@ def groups(points):
     for point in points:
         grouped.setdefault((point.ssid, point.security), []).append(point)
     return list(grouped.values())
+
+
+def matching(profiles, ap, iface):
+    def compatible(auth):
+        if not ap.security or ap.security == '--':
+            return auth == 'open'
+        if any(word in ap.security for word in ('802.1X', 'Enterprise')):
+            return auth in ('wpa-eap', 'wpa-eap-suite-b-192', 'ieee8021x')
+        return auth == 'wpa-psk' or auth == 'sae' and 'WPA3' in ap.security
+    return [p for p in profiles if p.ssid == ap.ssid and (not p.iface or p.iface == iface) and compatible(p.auth)]
+
+
+def band(freq):
+    try:
+        mhz = int(freq.split()[0])
+        return '2.4 GHz' if mhz < 3000 else '5 GHz' if mhz < 5925 else '6 GHz'
+    except (ValueError, IndexError):
+        return freq
 
 
 def update_keyfile(text, updates):
@@ -213,6 +250,7 @@ class Editor:
         ip = data.get('ipv4', {})
         address, _, gateway = _first(ip, 'address1').partition(',')
         if (_first(ip, 'method', 'auto') not in ('auto', 'manual')
+                or _first(ip, 'method', 'auto') == 'auto' and address
                 or any(k.startswith('address') and k != 'address1' for k in ip)):
             raise Error('This profile has complex IP settings; edit it with NetworkManager directly')
         return cls(profile.name, profile.ssid, profile.iface, profile.auth,
@@ -254,13 +292,16 @@ class Editor:
             if profile and self.ssid != profile.ssid and self.password is None:
                 raise Error('Enter a password when changing the SSID; stored keys are not copied between networks')
         ip = {'method': self.method, 'address1': None, 'gateway': None, 'dns': None}
+        try:
+            ip['dns'] = ';'.join(str(ipaddress.IPv4Address(d)) for d in self.dns.split()) + ';' if self.dns else None
+        except ValueError:
+            raise Error('Invalid IPv4 DNS server') from None
         if self.method == 'manual':
             try:
                 if '/' not in self.address:
                     raise ValueError
                 ip['address1'] = str(ipaddress.IPv4Interface(self.address))
                 ip['gateway'] = str(ipaddress.IPv4Address(self.gateway)) if self.gateway else None
-                ip['dns'] = ';'.join(str(ipaddress.IPv4Address(d)) for d in self.dns.split()) + ';' if self.dns else None
             except ValueError:
                 raise Error('Invalid IPv4 address/prefix, gateway or DNS') from None
         elif self.method != 'auto':
@@ -276,12 +317,28 @@ class Editor:
             ssection: {'key-mgmt': self.auth if self.auth != 'open' else None,
                        'psk': _escape(password) if self.auth != 'open' else None,
                        'psk-flags': '0' if self.auth != 'open' else None,
-                       'pmf': '3' if self.auth == 'sae' else None},
+                       'pmf': ('3' if self.auth == 'sae' else
+                               (_first(data.get(ssection, {}), 'pmf') or None)
+                               if profile and profile.auth == self.auth else None)},
             'ipv4': ip,
         }
         if profile is None:
             updates['ipv6'] = {'method': 'auto'}
-        return identifier, update_keyfile(profile.text if profile else '', updates)
+        text = profile.text if profile else ''
+        if self.auth == 'open':
+            # Even an empty security section makes NM reject an open profile.
+            # A legacy wifi.security reference must be removed as well.
+            updates.pop(ssection)
+            updates[wsection]['security'] = None
+            kept, keep = [], True
+            for raw in text.splitlines():
+                line = raw.strip()
+                if line.startswith('[') and line.endswith(']'):
+                    keep = line[1:-1] not in ('wifi-security', '802-11-wireless-security')
+                if keep:
+                    kept.append(raw)
+            text = '\n'.join(kept)
+        return identifier, update_keyfile(text, updates)
 
 
 class Session:
@@ -350,3 +407,81 @@ class Session:
         if plan.changed(*self.edits):
             plan.command(['nmcli', 'connection', 'reload'])
             plan.note('Saved Wi-Fi profile changes do not activate a connection')
+
+
+class LiveTransaction:
+    """Controller of an independent board-side, 60-second Wi-Fi transaction."""
+    TERMINAL = ('kept', 'reverted', 'failed', 'recovery_failed')
+
+    def __init__(self, session, profile, iface, action='connect'):
+        self.session, self.target = session, session.target
+        self.profile, self.iface, self.action = profile, iface, action
+        self.directory = None
+        self.backup_id = None
+        self.started_at = None
+
+    def start(self):
+        import base64
+        import json
+        from pathlib import Path
+        import uuid
+        from board_tune.backup import Backup
+
+        t, p = self.target, self.profile
+        if not t.live:
+            raise Error('Connect now / Forget active network requires a running board')
+        for path in ('/usr/bin/python3', '/usr/bin/systemd-run', '/usr/bin/busctl'):
+            if not t.exists(path):
+                raise Error('Guarded Wi-Fi changes require python3, systemd-run and busctl; use Save only')
+        if p.iface and p.iface != self.iface:
+            raise Error('Select the adapter to which this profile is bound')
+        if p.active and p.active != self.iface:
+            raise Error('This profile is active on another adapter; select that adapter first')
+        if not p.uuid:
+            raise Error('The selected profile has no UUID')
+        if p.mode != 'infrastructure':
+            raise Error('Only station profiles can be activated by this manager')
+        text = self.session.edits.get(p.path)
+        if self.action == 'connect' and p.path in self.session.edits and text is None:
+            raise Error('The profile is pending deletion')
+        original = t.read(p.path) if p.path else None
+        if p.path in self.session.originals and original != self.session.originals[p.path]:
+            raise Error('Profile changed outside this session; reopen the manager')
+        if self.action == 'forget' and not p.path.startswith(PROFILE_DIRS[0] + '/'):
+            raise Error('This profile cannot be forgotten from its current storage')
+        backup = Backup.create(t, [p.path] if p.path and (text is not None or self.action == 'forget') else [])
+        self.backup_id = backup.id
+        identifier = uuid.uuid4().hex
+        self.directory = f'/run/board-tune-wifi/{identifier}'
+        t.mkdir(self.directory, 0o700, (0, 0))
+        request = dict(action=self.action, iface=self.iface, uuid=p.uuid,
+                       path=p.path if text is not None or self.action == 'forget' else '', text=text,
+                       original=base64.b64encode(original).decode() if original is not None else None)
+        t.write(self.directory + '/request.json', json.dumps(request).encode(), 0o600, (0, 0))
+        t.write(self.directory + '/worker.py', Path(__file__).with_name('wifi_worker.py').read_bytes(), 0o600, (0, 0))
+        import time
+        self.started_at = time.monotonic()
+        t.run(['systemd-run', '--quiet', '--collect', f'--unit=board-tune-wifi-{identifier}',
+               '--property=RuntimeMaxSec=90s', '/usr/bin/python3', self.directory + '/worker.py', self.directory])
+
+    def status(self):
+        import json
+        import time
+        raw = self.target.read(self.directory + '/status.json')
+        status = json.loads(raw) if raw else {'state': 'starting', 'remaining': 60}
+        if self.started_at is not None:
+            status['remaining'] = min(status['remaining'], max(0, int(60 - (time.monotonic() - self.started_at))))
+        return status
+
+    def decide(self, keep):
+        self.target.write(self.directory + '/decision', b'keep' if keep else b'revert', 0o600, (0, 0))
+
+    def finish(self, status):
+        if status['state'] == 'kept':
+            self.session.edits.pop(self.profile.path, None)
+            self.session.originals.pop(self.profile.path, None)
+        if status['state'] in self.TERMINAL:
+            self.target.remove(self.directory + '/request.json')
+            self.target.remove(self.directory + '/worker.py')
+            self.target.remove(self.directory + '/decision')
+            # Keep the small status file for auditing; it contains no credentials.

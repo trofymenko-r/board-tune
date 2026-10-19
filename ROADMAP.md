@@ -32,7 +32,7 @@ preservation. External instance overrides remain administrator-owned.
 | 0 | File backups and recovery foundations for subsequent changes | Implemented; 111 tests pass, 1 root-only test skipped |
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented; Pi 5 SSH-key login, locked password, sudo and repeat application verified |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
-| 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
+| 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Manager implemented; Pi 5 scan/connect/rollback/forget verified; country/radio/wrong-password checks pending |
 | 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI and UART1-4 internal loopback verified on Pi 5; 1-Wire/external UART wiring pending; overlays/Bluetooth pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
@@ -55,8 +55,25 @@ menu. Pi 5 SSH inspection now imports wireless90-5G first and lists all
 three profiles without activation. Increment 2 adds on-board AP scanning,
 SSID/security grouping, profile editing with UUID/unknown-setting retention,
 masked credentials and forgetting non-active profiles through the backed-up
-review/apply plan. Draft edits can be discarded. Guarded live connection
-and active-profile forgetting are the following increment.
+review/apply plan. Increment 3 adds separate Connect now / Save only actions,
+guarded active-profile forgetting and an independent 60-second board-side
+worker with NetworkManager checkpoint and private file recovery. Drafts can
+be discarded independently; dry-run blocks live actions. Pi 5 verification
+passed activation/keep, controller-loss timeout rollback, active forget keep/
+revert, and unavailable-AP recovery. Original Wi-Fi profiles and active UUID
+were restored. Physical wrong-password, no-Internet and Wi-Fi-carried SSH-loss
+checks remain; the controller-loss test used independent Ethernet access.
+Final automated verification: 319 passed, 1 root-only test skipped.
+2026-10-20 presentation update: saved networks, available networks and AP
+details use aligned tables with fixed headers, right-aligned numeric fields,
+terminal-width adaptation and Unicode-aware clipping. Signal percentages
+also have a four-step rising Wi-Fi indicator (▂▄▆█) in the network/AP lists
+and active status: red below 40%, yellow at 40-69%, green from 70%. Only
+filled bars are colored, retaining the normal/selected row background.
+Monochrome terminals, the monochrome theme and NO_COLOR retain plain bars.
+Focused Wi-Fi/menu verification: 29 passed. SSH PTY table/bar rendering and
+resize passed at 60/80/100 columns, exiting with Nothing to change.
+Data selection and network actions are unchanged.
 
 ## Existing gaps to address alongside the stages
 
@@ -65,8 +82,9 @@ and active-profile forgetting are the following increment.
 - Report ambiguous/unsupported settings instead of presenting guesses as facts.
 - Validate target configurations before activation and preserve idempotency.
 - Keep secrets out of displayed diffs and ordinary profile values.
-- Network changes currently wait for reboot; any live activation needs a
-  connectivity-preserving design before implementation.
+- Wired network changes currently wait for reboot. Wi-Fi supports explicit
+  checkpointed live actions; extending live activation to Ethernet needs
+  the same connectivity-preserving design.
 
 ## Physical-board verification pending
 
@@ -74,7 +92,8 @@ and active-profile forgetting are the following increment.
 - Pi 5: GPIO UART (`uart0_console`) and debug connector.
 - Users: password-hash login, group changes and offline-media boot. New-user
   SSH-key login, locked-password status and passwordless sudo passed on Pi 5.
-- Wi-Fi association, country setting and reconnect behavior.
+- Wi-Fi country/radio setting, wrong credentials, hidden-AP association,
+  no-Internet behavior, and recovery of SSH actually carried over Wi-Fi.
 - Enabled buses, overlays and watchdog on the corresponding hardware.
 
 ## Stage completion criteria

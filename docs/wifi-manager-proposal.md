@@ -166,7 +166,7 @@ the manager. Add a scoped action callback in the menu adapter rather than
 encoding changing AP lists as static Kconfig choices. Refresh runtime
 state after any operation; retain unsaved edits belonging to other hooks.
 
-## Proposed implementation sequence
+## Implementation sequence
 
 1. Correct active-profile readback and add the status/saved-profile browser,
    including offline behavior and stable UUID identity. Commit and verify
@@ -182,3 +182,12 @@ state after any operation; retain unsaved edits belonging to other hooks.
 Hardware verification must cover wrong credentials, unavailable AP,
 successful saved/new connections, absence of Internet, cancellation,
 timeout and SSH loss. Do not mark these passed based on fake transports.
+
+All three implementation increments are delivered. Pi 5 checks passed
+status/profile inventory, scanning, activating a temporary copy of the
+current network profile, keep, controller-loss timeout rollback, active
+forget with keep/revert, and unavailable-AP recovery. All three original
+profile files and their attributes were preserved and the initial active
+UUID was restored. A real SSH PTY check exercised the manager and scanning
+without applying changes. Wrong credentials, no-Internet conditions and
+loss of a session actually carried over Wi-Fi remain separate checks.

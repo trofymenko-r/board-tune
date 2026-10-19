@@ -239,7 +239,7 @@ def test_forget_wifi_draft_can_be_discarded(tmp_path, rootfs):
     with terminal(tmp_path, target=rootfs) as (session, destination):
         session.enter_hook('wifi')
         session.wait('Offline target')
-        session.send('\n\njj\n')
+        session.send('\n\njjj\n')
         session.wait('Remove saved profile Lab?')
         session.send('j\n\x1b\x1bq')
         session.wait('Keep changes and continue')
@@ -247,3 +247,39 @@ def test_forget_wifi_draft_can_be_discarded(tmp_path, rootfs):
         session.wait()
         assert session.process.returncode == 1
     assert file.read_text() == original
+
+
+def test_wifi_password_form_masks_input_and_cancel_creates_nothing(tmp_path, rootfs):
+    secret = 'NeverPrintThisPassword'
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook('wifi')
+        session.wait('Offline target')
+        session.send('jj\n')
+        session.wait('Edit Wi-Fi profile')
+        session.send('\nLabSSID\njjjj\n')
+        session.wait('Ctrl-U: clear')
+        session.send(secret + '\n')
+        session.send('q\x1bq')
+        session.wait()
+        assert secret.encode() not in session.output
+    assert not list((rootfs / 'etc/NetworkManager/system-connections').glob('*.nmconnection'))
+
+
+def test_forget_wifi_draft_applies_after_review_confirmation(tmp_path, rootfs):
+    file = rootfs / 'etc/NetworkManager/system-connections/Lab.nmconnection'
+    file.write_text('[connection]\nid=Lab\nuuid=lab\ntype=wifi\n[wifi]\nssid=Lab\n[ipv4]\nmethod=auto\n')
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook('wifi')
+        session.wait('Offline target')
+        session.send('\n\njjj\n')
+        session.wait('Remove saved profile Lab?')
+        session.send('j\n\x1b\x1bq')
+        session.wait('Keep changes and continue')
+        session.send('y')
+        session.wait('Apply 1 change(s)?')
+        assert file.exists()
+        session.send('y\n')
+        session.wait()
+        assert session.process.returncode == 0
+    assert not file.exists()
+    assert list((rootfs / 'var/backups/board-tune').glob('*.json'))

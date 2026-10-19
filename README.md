@@ -237,7 +237,27 @@ Batch profile / boot country options. Apply manager edits separately from
 changes to those batch options. Offline targets support saved profiles
 without live status or scanning.
 
-One NetworkManager station profile per invocation: interface, UTF-8 SSID,
+Connect now reviews and applies only the selected Wi-Fi action immediately.
+It uses a board-side worker and a NetworkManager checkpoint scoped to that
+adapter. Confirm Keep within 60 seconds or the board restores the previous
+profile files and device state, even when the SSH controller disappears.
+The dialog identifies the SSH adapter. If its address changes, recovery
+retries the original destination; discovering a new DHCP address is not
+supported. Internet access is not required to keep an associated connection.
+An active profile's Forget action uses this same protected disconnect/
+confirmation flow. Discard Wi-Fi drafts affects only pending edits, while
+confirmed live changes stay applied. `--dry-run` disables live actions.
+
+Live actions require NetworkManager checkpoint support, systemd-run,
+busctl and Python 3 on the board; no Python packages are installed there.
+Private requests are transported through stdin-backed file writes, never
+password arguments. Workers remove request credentials on completion;
+small status files remain under `/run/board-tune-wifi/`. File recovery
+snapshots remain in the existing private backup directory. Changes are
+not a power-loss transaction, and reconnecting an old network depends on
+its access point remaining available.
+
+The batch hook configures one NetworkManager station profile per invocation: interface, UTF-8 SSID,
 WPA2/WPA3 Personal, WPA3-only or open security, hidden SSID, autoconnect,
 priority, DHCP/static IPv4, gateway and DNS. Existing profiles remain in
 place, so repeat with another SSID to provision multiple known networks.
@@ -264,9 +284,10 @@ WPA3-only profiles require protected management frames.
 The target needs NetworkManager/nmcli, rfkill, and iw plus ISO country data
 when changing country. Boot services set the regulatory domain/unblock the
 radio before NetworkManager, then enable its Wi-Fi radio after it starts.
-Saved rfkill state is updated without changing the running radio. Live
+Saved rfkill state is updated without changing the running radio. Batch
 application reloads profiles but never activates a connection, restarts
-NetworkManager or unblocks the current radio. Settings take effect at reboot.
+NetworkManager or unblocks the current radio. Batch settings take effect
+at reboot; the manager's explicit Connect now action can activate without reboot.
 
 The format follows the [NetworkManager keyfile reference](https://www.networkmanager.dev/docs/api/latest/nm-settings-keyfile.html).
 Physical login, locale/time and radio checks are tracked in
