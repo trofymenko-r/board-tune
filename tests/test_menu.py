@@ -230,3 +230,20 @@ def test_terminal_input_cancel_and_small_window(tmp_path):
         session.wait()
         assert session.process.returncode == 0
         assert "CONFIG_SSH_PORT=2200" in destination.read_text()
+
+
+def test_forget_wifi_draft_can_be_discarded(tmp_path, rootfs):
+    file = rootfs / 'etc/NetworkManager/system-connections/Lab.nmconnection'
+    original = '[connection]\nid=Lab\nuuid=lab\ntype=wifi\n[wifi]\nssid=Lab\n[ipv4]\nmethod=auto\n'
+    file.write_text(original)
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook('wifi')
+        session.wait('Offline target')
+        session.send('\n\njj\n')
+        session.wait('Remove saved profile Lab?')
+        session.send('j\n\x1b\x1bq')
+        session.wait('Keep changes and continue')
+        session.send('n')
+        session.wait()
+        assert session.process.returncode == 1
+    assert file.read_text() == original

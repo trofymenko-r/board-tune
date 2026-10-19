@@ -193,7 +193,13 @@ class Configuration:
             if self.target is not None:
                 from board_tune.wifi_menu import WifiManager
                 self.wifi_manager = WifiManager(self.target)
-                actions["Wi-Fi"] = self.wifi_manager.show
+                def open_wifi(ui):
+                    previous = dict(self.wifi_manager.session.edits)
+                    legacy = self.wifi_manager.show(ui)
+                    if previous != self.wifi_manager.session.edits:
+                        ui._conf_changed = True
+                    return legacy
+                actions["Wi-Fi"] = open_wifi
             with kernel_style(menuconfig, actions):
                 menuconfig.menuconfig(self.kconf)
         finally:

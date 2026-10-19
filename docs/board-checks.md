@@ -296,3 +296,10 @@ wireless90-5G was correctly ordered first as the active wlan0 connection.
 Status returned its actual 192.168.1.156/24 address, gateway and DNS. No
 activation, disconnect, deletion or forced scan was performed. A real PTY
 check also opens/closes the offline profile browser without changing files.
+
+Fresh on-board AP scanning returned eight access points, including a hidden
+SSID. wlan0 remained connected to the same profile before/after the scan.
+Profile edit/forget behavior is tested on disposable rootfs fixtures,
+including backup restoration, duplicate SSIDs, external concurrent edits,
+secret redaction and discarding a forget draft in a real PTY. The board's
+saved profiles were not modified for these checks.

@@ -223,6 +223,20 @@ using.
 
 ### Wi-Fi (`WIFI`)
 
+With a target, the Wi-Fi menu opens a manager showing live connection/IP
+status and all saved profiles. Available networks are scanned by the board
+and grouped by SSID/security; cached results are labeled if scanning fails.
+Select a profile to inspect or edit it, or choose Forget network. Profiles
+are identified by UUID, so editing keeps the existing profile and its
+unrelated settings. New/hidden networks use a masked password dialog.
+Save only and forgetting non-active profiles prepare private session drafts
+for the normal review/apply step after leaving menuconfig. Discarding the
+session discards drafts. Drafts are not included in exported Kconfig files;
+the existing WIFI_* password-file batch workflow remains available under
+Batch profile / boot country options. Apply manager edits separately from
+changes to those batch options. Offline targets support saved profiles
+without live status or scanning.
+
 One NetworkManager station profile per invocation: interface, UTF-8 SSID,
 WPA2/WPA3 Personal, WPA3-only or open security, hidden SSID, autoconnect,
 priority, DHCP/static IPv4, gateway and DNS. Existing profiles remain in

@@ -113,9 +113,14 @@ def _confirm(question: str) -> bool:
 
 
 def apply(args: argparse.Namespace, registry: Registry, config: Config,
-          target: Target | None = None, skip_hooks: set[str] | None = None) -> int:
+          target: Target | None = None, skip_hooks: set[str] | None = None,
+          wifi_session=None) -> int:
     with (nullcontext(target) if target is not None else open_target(args.target)) as target:
         plan = build_plan(registry, config, target, skip_hooks)
+        if wifi_session is not None and wifi_session.edits:
+            if not skip_hooks or "wifi" not in skip_hooks:
+                raise Error("Apply Wi-Fi manager edits separately from batch Wi-Fi options")
+            wifi_session.plan_into(plan)
         changes = plan.changes()
         _, board = registry.board(config)
         print(f"Target: {target.description}, {board.title}")
@@ -209,7 +214,9 @@ def run(args: argparse.Namespace) -> int:
         if args.target:
             unchanged = {hook.name for hook in registry.hooks
                          if baseline.get(hook.name) == conf.hook_values(registry, hook)}
-            return apply(args, registry, conf.config, target, unchanged)
+            manager = getattr(conf, "wifi_manager", None)
+            return apply(args, registry, conf.config, target, unchanged,
+                         manager.session if manager else None)
         if not args.save:
             print("No target given, nothing applied." if interactive
                   else "Configuration is valid.")

@@ -52,8 +52,11 @@ readback showed Sweet Home while wireless90-5G was active on Pi 5.
 See [interaction plan](docs/wifi-manager-proposal.md). Increment 1 adds
 active-profile readback and a saved-profile/status browser in the existing
 menu. Pi 5 SSH inspection now imports wireless90-5G first and lists all
-three profiles without activation. Scanning/editing/forget and guarded
-live connection transactions are the following increments.
+three profiles without activation. Increment 2 adds on-board AP scanning,
+SSID/security grouping, profile editing with UUID/unknown-setting retention,
+masked credentials and forgetting non-active profiles through the backed-up
+review/apply plan. Draft edits can be discarded. Guarded live connection
+and active-profile forgetting are the following increment.
 
 ## Existing gaps to address alongside the stages
 
