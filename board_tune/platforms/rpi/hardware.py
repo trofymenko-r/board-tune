@@ -2,7 +2,7 @@
 
 import re
 
-from . import configtxt, onewire
+from . import configtxt, onewire, uart
 
 I2C_MODULES = "/etc/modules-load.d/board-tune-i2c.conf"
 PARAMS = {"i2c": "I2C", "i2c_arm": "I2C", "spi": "SPI"}
@@ -61,6 +61,7 @@ def read(ctx, directory):
     ctx.plan.note("hardware menu shows explicit base boot parameters, not running "
                   "bus status; device overlays and HAT pin conflicts are not evaluated")
     values.update(onewire.read(ctx, directory))
+    values.update(uart.read(ctx, directory))
     return values
 
 
@@ -96,3 +97,4 @@ def setup(ctx, directory):
                                                or cfg.enabled("RPI5_SERIAL_GPIO")):
             busy.update((14, 15))
         onewire.setup(ctx, directory, busy)
+    uart.setup(ctx, directory)

@@ -9,7 +9,7 @@ from board_tune import cmdline, systemd
 from board_tune.errors import Error, Unsupported
 from board_tune.registry import Board, Context, Platform
 
-from . import configtxt, hardware
+from . import configtxt, hardware, uart
 
 BOOT_DIRS = ("/boot/firmware", "/boot")
 
@@ -51,7 +51,7 @@ class RaspberryPi(Platform):
         filters = set()
         starts = {f"# >>> board-tune: {name} >>>"
                   for name in ("serial_console", "hardware_i2c", "hardware_spi",
-                               "hardware_onewire")}
+                               "hardware_onewire", *[f"hardware_uart{i}" for i in range(6)])}
         for directory in BOOT_DIRS:
             data = target.read(f"{directory}/config.txt")
             if data is None:
@@ -74,7 +74,7 @@ class RaspberryPi(Platform):
 
     def setup_hardware(self, ctx):
         if all(ctx.config.enabled(f"HARDWARE_{bus}_KEEP")
-               for bus in ("I2C", "SPI", "ONEWIRE")):
+               for bus in ("I2C", "SPI", "ONEWIRE")) and not uart.has_actions(ctx):
             return
         hardware.setup(ctx, self.boot_dir(ctx))
 

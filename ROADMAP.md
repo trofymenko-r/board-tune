@@ -26,7 +26,7 @@ be inferred from the existing design.
 | 1 | Users: creation, password/hash, password locking, shell, groups, sudo | Implemented; Pi 5 SSH-key login, locked password, sudo and repeat application verified |
 | 2 | Hostname, timezone, locale, keyboard layout, NTP/time servers | Implemented; 140 tests pass, 1 root-only test skipped |
 | 3 | Wi-Fi: SSID, credentials, country, hidden SSID, autoconnect, priorities | Implemented for NetworkManager; physical radio/AP check pending |
-| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI verified on Pi 5; GPIO 1-Wire implemented, physical check deferred; UARTs/overlays/Bluetooth pending |
+| 4 | Hardware: I2C, SPI, 1-Wire, additional UARTs, overlays/parameters, Bluetooth | I2C/SPI verified on Pi 5; 1-Wire/UART implemented, physical checks deferred; overlays/Bluetooth pending |
 | 5 | Boot: console/desktop target, network wait, splash, local console autologin | Pending |
 | 6 | Networking: multiple interfaces, IPv6, routes, metrics, MTU | Pending |
 | 7 | Logging/recovery: persistent/RAM journal, size limits, hardware watchdog | Pending |
@@ -143,7 +143,7 @@ adapters; the physical disable test exposed and corrected removal of that
 shared module's boot file.
 Original boot/module files were restored from backup after the test; actual
 bus transfers, camera image capture and Pi 4 hardware remain untested.
-Remaining stage-4 work: additional UARTs, overlays/parameters and
+Remaining stage-4 work: overlays/parameters and
 Bluetooth. Baud rates/additional I2C/SPI buses are not part of this milestone.
 
 ## Stage 4: GPIO 1-Wire (2026-10-19)
@@ -166,3 +166,27 @@ Physical controller enumeration, sensor communication and
 offline-media boot remain pending: the owner currently has no test device.
 No changes or reboots are made on the owner's board for this milestone.
 Next functional milestone: additional UARTs.
+
+## Stage 4: additional UARTs (2026-10-19)
+
+Implemented per-port Keep/Enable/Disable managed overlay plus CTS/RTS for
+Pi 4 UART2-5 and Pi 5 UART0-4. Model-specific installed overlays are required;
+readback covers inline/colon/subsequent dtparam flow settings, reuses matching
+external configuration, and reports unresolved settings rather than rewriting
+them. Base-dtb controls, generic Pi 5 overlay-map aliases, RS485/custom
+parameters, multiple/conditional overlays and includes need explicit resolution.
+
+Validated known GPIO conflicts with I2C/SPI, 1-Wire, other UARTs and the
+primary console/getty. Changes to console pins and unresolved tty-controller
+maps are refused; kept/unchanged controllers retain their configuration.
+No runtime serial/overlay/getty commands are scheduled. UART IDs and tty
+numbers are deliberately not assumed equivalent. Baud/parity/runtime flow
+control remain application settings. Bluetooth configuration is preserved.
+
+Tests exercise every supported port with/without CTS/RTS, repeat apply,
+readback, disable, board detection, profile dependencies, old boot paths,
+missing overlays, dry-run, live plans, GPIO/console/getty guards and terminal
+menu editing. Full suite: 255 passed, 1 root-only skip.
+Hardware enumeration, loopback/CTS/RTS and offline-media boot
+remain unverified; the owner's board is not changed in this milestone.
+Next functional milestone: Device Tree overlays and parameters, then Bluetooth.

@@ -1,0 +1,185 @@
+if PLATFORM_RPI && HARDWARE
+
+menu "Additional UARTs"
+
+choice
+	prompt "UART0 (GPIO 14/15)" if BOARD_RPI5
+	depends on BOARD_RPI5
+	default HARDWARE_UART0_KEEP
+
+config HARDWARE_UART0_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART0_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART0_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART0_CTSRTS
+	bool "UART0 CTS/RTS (GPIO 16/17)" if BOARD_RPI5
+	depends on HARDWARE_UART0_ENABLE
+	help
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+choice
+	prompt "UART1 (GPIO 0/1)" if BOARD_RPI5
+	depends on BOARD_RPI5
+	default HARDWARE_UART1_KEEP
+
+config HARDWARE_UART1_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART1_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART1_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART1_CTSRTS
+	bool "UART1 CTS/RTS (GPIO 2/3)" if BOARD_RPI5
+	depends on HARDWARE_UART1_ENABLE
+	help
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+choice
+	prompt "UART2 (Pi4: 0/1; Pi5: 4/5)"
+	depends on BOARD_RPI4 || BOARD_RPI5
+	default HARDWARE_UART2_KEEP
+
+config HARDWARE_UART2_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART2_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART2_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART2_CTSRTS
+	bool "UART2 CTS/RTS"
+	depends on HARDWARE_UART2_ENABLE
+	help
+	  Pi 4 uses GPIO 2/3; Pi 5 uses GPIO 6/7 (BCM numbers).
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+choice
+	prompt "UART3 (Pi4: 4/5; Pi5: 8/9)"
+	depends on BOARD_RPI4 || BOARD_RPI5
+	default HARDWARE_UART3_KEEP
+
+config HARDWARE_UART3_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART3_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART3_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART3_CTSRTS
+	bool "UART3 CTS/RTS"
+	depends on HARDWARE_UART3_ENABLE
+	help
+	  Pi 4 uses GPIO 6/7; Pi 5 uses GPIO 10/11 (BCM numbers).
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+choice
+	prompt "UART4 (Pi4: 8/9; Pi5: 12/13)"
+	depends on BOARD_RPI4 || BOARD_RPI5
+	default HARDWARE_UART4_KEEP
+
+config HARDWARE_UART4_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART4_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART4_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART4_CTSRTS
+	bool "UART4 CTS/RTS"
+	depends on HARDWARE_UART4_ENABLE
+	help
+	  Pi 4 uses GPIO 10/11; Pi 5 uses GPIO 14/15 (BCM numbers).
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+choice
+	prompt "UART5 (GPIO 12/13)" if BOARD_RPI4
+	depends on BOARD_RPI4
+	default HARDWARE_UART5_KEEP
+
+config HARDWARE_UART5_KEEP
+	bool "Keep current"
+
+config HARDWARE_UART5_ENABLE
+	bool "Enable"
+	help
+	  Enable this UART at the next boot, using its standard pins.
+	  GPIO 0/1, where used, overlap the HAT identification interface.
+
+config HARDWARE_UART5_DISABLE
+	bool "Disable managed overlay"
+	help
+	  Remove only board-tune's overlay. External UART configuration
+	  must be edited explicitly. Console ports are protected.
+
+endchoice
+
+config HARDWARE_UART5_CTSRTS
+	bool "UART5 CTS/RTS (GPIO 14/15)" if BOARD_RPI4
+	depends on HARDWARE_UART5_ENABLE
+	help
+	  Reserve the UART's CTS/RTS pins at boot. Enable hardware flow control
+	  in the application as well; baud rate and termios are not configured.
+
+endmenu
+
+endif
+

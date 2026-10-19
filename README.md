@@ -322,7 +322,7 @@ Check attached hardware/pin usage before rebooting. SPI device overlays can
 claim chip selects instead of exposing spidev. The base parameter format and
 overlay-scope reset follow the
 [Raspberry Pi Device Tree documentation](https://www.raspberrypi.com/documentation/computers/configuration.html#dt-parameters).
-Additional buses, baud rates, UARTs and Bluetooth follow in later
+Additional I2C/SPI buses, baud rates and Bluetooth follow in later
 hardware milestones.
 
 GPIO 1-Wire has Keep, Enable and Disable managed overlay actions in the same
@@ -360,6 +360,61 @@ external pull-up control. See the
 [official overlay reference](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm/boot/dts/overlays/README).
 Controller enumeration and actual device communication remain unverified
 until a physical-board check is available.
+
+The Additional UARTs submenu configures Pi 4 UART2-5 and Pi 5 UART0-4.
+Each port has Keep, Enable, Disable managed overlay and optional CTS/RTS.
+GPIOs below use BCM numbering; controller IDs are not Linux tty numbers.
+
+| Board | UART | TX/RX GPIO | CTS/RTS GPIO |
+|---|---|---|---|
+| Pi 4 | 2 | 0/1 | 2/3 |
+| Pi 4 | 3 | 4/5 | 6/7 |
+| Pi 4 | 4 | 8/9 | 10/11 |
+| Pi 4 | 5 | 12/13 | 14/15 |
+| Pi 5 | 0 | 14/15 | 16/17 |
+| Pi 5 | 1 | 0/1 | 2/3 |
+| Pi 5 | 2 | 4/5 | 6/7 |
+| Pi 5 | 3 | 8/9 | 10/11 |
+| Pi 5 | 4 | 12/13 | 14/15 |
+
+GPIO 0/1 overlap HAT identification. Verify connected hardware before using
+those ports. Pin assignments follow the
+[official UART overlay reference](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm/boot/dts/overlays/README).
+For example, enable Pi 5 UART2 and reserve its flow-control pins:
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_UART2_ENABLE=y
+CONFIG_HARDWARE_UART2_CTSRTS=y
+```
+
+The target must have the corresponding installed overlay: `uart2.dtbo`,
+etc. on Pi 4; explicit `uart0-pi5.dtbo` through `uart4-pi5.dtbo` on Pi 5.
+Managed `hardware_uartN` blocks are backed up, model-filtered and applied
+at next boot; disable removes the managed overlay while retaining scope
+boundaries. Keep preserves that port. A matching external overlay is reused;
+changing its flow-control setting or disabling it requires explicitly editing
+its configuration. Readback accepts inline/colon and subsequent dtparam
+ctsrts values. Unknown parameters (including RS485), multiple overlays,
+conditional/includes and external base-dtb UART controls are not silently
+rewritten. Generic Pi 5 `uartN` names stay uncertain because their target
+firmware overlay_map is not evaluated.
+
+Validation checks known primary I2C/SPI, GPIO 1-Wire and other UART pin
+conflicts, including ports left at Keep. Primary kernel-console and enabled
+serial-getty pins are protected from port changes. An unresolved tty/serial
+console mapping or explicit earlycon address prevents UART changes instead
+of guessing which controller it uses. The existing Serial console hook
+continues to manage the primary console; Pi 4 Bluetooth/primary UARTs and
+the Pi 5 debug UART are not configured by this submenu. Arbitrary device
+overlays/HAT pin use still requires operator review.
+
+No live overlays, getty restarts, device access or termios changes run.
+Baud rate, parity and runtime hardware flow control belong to the application;
+the CTS/RTS option reserves the pins at boot. Check runtime tty-to-controller
+mapping before opening a port, particularly on Pi 4. Real enumeration,
+loopback, flow control and attached-device communication remain pending.
 
 ## Extending
 

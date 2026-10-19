@@ -139,6 +139,34 @@ Controller enumeration, electrical behavior and sensor readings have not
 been checked on a board for this milestone. Automated rootfs/live-plan tests
 do not replace that check.
 
+### Additional UARTs (physical check pending)
+
+Choose the correct controller and free TX/RX GPIOs from the table in README.
+GPIO 0/1 overlap HAT identification; CTS/RTS needs two further free pins.
+Example for Pi 5 (Pi 4 supports UART2-5 with different pin assignments):
+
+```config
+CONFIG_BOARD_RPI5=y
+CONFIG_HARDWARE=y
+CONFIG_HARDWARE_UART2_ENABLE=y
+CONFIG_HARDWARE_UART2_CTSRTS=y
+```
+
+Preview/apply, record the backup ID and reboot a test installation. Confirm
+the intended controller has a tty device by inspecting its sysfs/Device Tree
+binding; do not infer Pi 4 controller IDs from ttyAMA numbers. Verify the
+original serial console, SSH access, Bluetooth and camera remain usable.
+Repeat the profile and expect no changes. With suitable 3.3 V wiring and the
+correct runtime termios settings, check a TX/RX loopback or a known peripheral.
+Verify CTS/RTS separately with the appropriate wiring and application flow
+control enabled. A tty entry alone is not a successful communication test.
+
+Disable the managed overlay, reboot, and verify it is absent while other
+ports remain configured. Restore original boot files when finished. External
+overlays/base parameters must be resolved explicitly before changing that
+port. Physical enumeration, data exchange, flow control and console/Bluetooth
+preservation have not yet been checked on a board for this milestone.
+
 ## Recovery
 
 Record the printed backup ID. Use `--list-backups`, inspect a

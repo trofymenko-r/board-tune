@@ -2,7 +2,7 @@ config HARDWARE
 	bool "Configure hardware interfaces"
 	depends on PLATFORM_RPI
 	help
-	  Configure header I2C, SPI0 and GPIO 1-Wire at the next boot.
+	  Configure header I2C, SPI0, GPIO 1-Wire and additional UARTs at boot.
 	  Check connected hardware and GPIO assignments before enabling them.
 
 if HARDWARE

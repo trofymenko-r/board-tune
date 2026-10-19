@@ -120,6 +120,25 @@ def test_onewire_gpio_can_be_edited_and_saved(tmp_path):
         assert "CONFIG_HARDWARE_ONEWIRE_GPIO=17" in text
 
 
+def test_additional_uart_and_flow_control_can_be_saved(tmp_path):
+    with terminal(tmp_path, "CONFIG_BOARD_RPI5=y\nCONFIG_HARDWARE=y\n") as (session, destination):
+        session.enter_hook("hardware")
+        session.wait("Additional UARTs")
+        session.send("jjjj\n")
+        session.wait("UART0 (GPIO 14/15)")
+        session.send("jj\n")
+        session.wait("Disable managed overlay")
+        session.send("j\n")
+        session.wait("UART2 CTS/RTS")
+        session.send("j q")
+        session.wait("Keep changes and continue")
+        session.send("y")
+        session.wait()
+        text = destination.read_text()
+        assert "CONFIG_HARDWARE_UART2_ENABLE=y" in text
+        assert "CONFIG_HARDWARE_UART2_CTSRTS=y" in text
+
+
 def test_terminal_edit_save_and_resize(tmp_path):
     with terminal(tmp_path, "CONFIG_SSH=y\nCONFIG_SSH_PORT=2200\n") as (session, destination):
         session.enter_hook("ssh")
