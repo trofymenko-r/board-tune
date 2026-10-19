@@ -13,10 +13,48 @@ AUTOLOGIN_DROPIN = "/etc/systemd/system/serial-getty@.service.d/autologin.conf"
 # Rates agetty tries on serial lines, as in the stock serial-getty unit.
 KEEP_BAUD = (115200, 57600, 38400, 9600)
 _VIRTUAL_TERMINAL = re.compile(r"tty\d+$")
+_UNIT_DIRS = (systemd.SYSTEM_DIR, "/run/systemd/system",
+              "/usr/local/lib/systemd/system", *systemd.VENDOR_DIRS)
 
 
 def _is_vt_console(token: str) -> bool:
     return bool(_VIRTUAL_TERMINAL.match(cmdline.value(token).split(",")[0]))
+
+
+def _getty_files(ctx: Context) -> list[str]:
+    """Serial getty fragment and drop-ins, in systemd's application order."""
+    template = "serial-getty@.service"
+    names = [template]
+    device = ctx.platform.serial_console_device(ctx)
+    if device:
+        resolved = ctx.target.realpath(f"/dev/{device}").removeprefix("/dev/")
+        if re.fullmatch(r"tty(?:AMA|S)\d+", resolved):
+            names.insert(0, f"serial-getty@{resolved}.service")
+        elif device.startswith("serial"):
+            ctx.plan.note(f"/dev/{device} cannot be resolved; instance-specific "
+                          "serial getty settings could not be imported")
+
+    fragment = next((f"{directory}/{name}" for name in names
+                     for directory in _UNIT_DIRS
+                     if ctx.plan.exists(f"{directory}/{name}")), None)
+    if fragment and (ctx.plan.readlink(fragment) == "/dev/null"
+                     or ctx.plan.read(fragment) == b""):
+        return []
+    dropin_names = [*names, "serial-.service"]
+    if len(names) > 1:
+        dropin_names += [f"serial-@{resolved}.service", "serial-@.service"]
+    dropin_names.append("service")
+    # Same-name drop-ins: /etc wins over /run and vendor directories;
+    # within each directory the instance wins over the template/prefix.
+    # Different filenames are then applied in lexical order across all dirs.
+    dropins = {}
+    for directory in _UNIT_DIRS:
+        for name in dropin_names:
+            path = f"{directory}/{name}.d"
+            for filename in ctx.target.listdir(path):
+                if filename.endswith(".conf"):
+                    dropins.setdefault(filename, f"{path}/{filename}")
+    return ([fragment] if fragment else []) + [dropins[n] for n in sorted(dropins)]
 
 
 class SerialConsole(Hook):
@@ -28,15 +66,10 @@ class SerialConsole(Hook):
         values = ctx.platform.read_serial_console(ctx)
         if values.get("SERIAL_CONSOLE") != "y":
             return values
-        # Inspect the template and its drop-ins, without executing agetty.
-        paths = [systemd.find_unit(ctx.plan, "serial-getty@.service")]
-        directory = "/etc/systemd/system/serial-getty@.service.d"
-        paths += [f"{directory}/{name}" for name in ctx.target.listdir(directory)
-                  if name.endswith(".conf")]
+        # Follow serial0 -> ttyAMA10, for example, to inspect the getty
+        # instance used by systemd-getty-generator, without running agetty.
         start = ""
-        for path in paths:
-            if path is None:
-                continue
+        for path in _getty_files(ctx):
             section = ""
             for raw in (ctx.plan.read_text(path) or "").splitlines():
                 line = raw.strip()

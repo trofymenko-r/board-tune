@@ -81,6 +81,10 @@ class Platform:
         """Return serial-console options found in the platform's boot files."""
         return {}
 
+    def serial_console_device(self, ctx: Context) -> str | None:
+        """Device name of the console shown by read_serial_console, if known."""
+        return None
+
     def read_hardware(self, ctx: Context) -> dict[str, str]:
         """Read platform-specific boot interface settings, when supported."""
         return {}

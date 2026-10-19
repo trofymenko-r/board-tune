@@ -18,6 +18,13 @@ be inferred from the existing design.
 - Profiles, profile merging, overrides, target readback, preview/dry-run.
 - Compact kernel-style menuconfig interface.
 
+Serial autologin readback corrected on 2026-10-19: resolve the console
+device alias and import instance-specific systemd overrides with drop-in
+precedence. Verified on Pi 5 over SSH: active autologin for `mipi` is now
+shown correctly; boot/getty file hashes stayed unchanged. Regression tests
+cover instance/template ordering, unrelated consoles and unchanged-menu
+preservation. External instance overrides remain administrator-owned.
+
 ## Delivery order
 
 | Stage | Scope | Status |

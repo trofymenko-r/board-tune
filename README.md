@@ -202,6 +202,14 @@ login and sudo behavior on a test board before relying on a new account.
   bootloader's own log is enabled with `BOOT_UART=1` in the EEPROM
   configuration, which is not on the boot media.
 
+Autologin readback includes the selected serial getty instance as well as
+the template, with drop-in filename/load-path precedence. Device aliases
+such as `/dev/serial0` are resolved inside the target. If an offline image
+has no device alias, a note identifies that instance-specific settings
+could not be imported. Applying autologin options manages the board-tune
+template drop-in; external instance overrides remain administrator-owned
+and can override it.
+
 Settings go into a `config.txt` block under the board's filter
 (`[pi4]`/`[pi5]`), so they never apply to another board model.
 
@@ -448,6 +456,7 @@ names to current string values (`"y"`/`"n"` for booleans), without staging
 changes. The default returns nothing, preserving existing extensions.
 Platforms can implement `detect_offline_board(target)` and
 `read_serial_console(ctx)` for boot-media detection and serial readback,
+`serial_console_device(ctx)` for the corresponding console device name,
 and `read_hardware(ctx)` / `setup_hardware(ctx)` for hardware interfaces.
 
 A hook's `plan(ctx)` reads and stages changes through `ctx.plan`

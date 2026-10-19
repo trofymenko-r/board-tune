@@ -14,6 +14,11 @@ from . import configtxt, hardware, uart
 BOOT_DIRS = ("/boot/firmware", "/boot")
 
 
+def _serial_consoles(consoles):
+    return [c for c in consoles
+            if re.fullmatch(r"(?:serial|ttyAMA|ttyS)\d+", c.split(",")[0])]
+
+
 @dataclass(frozen=True)
 class RpiBoard(Board):
     # config.txt conditional filter selecting this board, e.g. [pi4].
@@ -84,8 +89,7 @@ class RaspberryPi(Platform):
             return {}
         tokens = (ctx.plan.read_text(f"{directory}/cmdline.txt") or "").split()
         consoles = [cmdline.value(t) for t in tokens if cmdline.key(t) == "console"]
-        serials = [c for c in consoles
-                   if re.fullmatch(r"(?:serial|ttyAMA|ttyS)\d+", c.split(",")[0])]
+        serials = _serial_consoles(consoles)
         if not serials:
             return {"SERIAL_CONSOLE": "n"}
         serial = serials[-1]
@@ -125,6 +129,15 @@ class RaspberryPi(Platform):
         if len(serials) > 1:
             ctx.plan.note("multiple serial consoles found; the menu shows the last one")
         return values
+
+    def serial_console_device(self, ctx):
+        directory = next((d for d in BOOT_DIRS if ctx.plan.exists(f"{d}/config.txt")), None)
+        if directory is None:
+            return None
+        tokens = (ctx.plan.read_text(f"{directory}/cmdline.txt") or "").split()
+        serials = _serial_consoles([cmdline.value(t) for t in tokens
+                                   if cmdline.key(t) == "console"])
+        return serials[-1].split(",")[0] if serials else None
 
     def boot_dir(self, ctx: Context) -> str:
         """Where the boot partition is mounted: /boot/firmware since Bookworm."""

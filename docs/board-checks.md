@@ -276,3 +276,15 @@ Bluetooth pairing, primary-console electrical communication, Pi 4 and
 offline-media boot were not exercised. The driver's internal loopback support
 is documented in the
 [PL011 kernel source](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/tty/serial/amba-pl011.c).
+
+## Serial autologin readback correction (2026-10-19)
+
+On `mipi@192.168.0.11`, `console=serial0,115200` resolves to ttyAMA10.
+Autologin is configured by the administrator's
+`/etc/systemd/system/serial-getty@ttyAMA10.service.d/autologin.conf`, rather
+than a template drop-in. The former reader missed this instance override.
+The corrected SSH readback returns `SERIAL_CONSOLE_AUTOLOGIN=y` and
+`SERIAL_CONSOLE_AUTOLOGIN_USER=mipi`, agreeing with the active service's
+ExecStart and DropInPaths. SHA-256 checks of config.txt, cmdline.txt and
+the instance override matched before/after. No files were applied, no
+getty was restarted and no reboot was needed.

@@ -87,6 +87,108 @@ def test_live_model_selects_board(conf, rootfs):
     assert conf.problems() == []
 
 
+def _getty_file(rootfs, path, command):
+    file = rootfs / path
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(f"[Service]\nExecStart=\nExecStart={command}\n")
+    return file
+
+
+@pytest.mark.parametrize("option", ["--autologin pi", "--autologin=pi", "-a pi"])
+def test_serial_autologin_instance_through_device_alias(conf, rootfs, target, option):
+    (rootfs / "dev").mkdir()
+    # An absolute link must resolve inside the target, not on the host.
+    (rootfs / "dev/serial0").symlink_to("/dev/ttyAMA10")
+    _getty_file(rootfs, "usr/lib/systemd/system/serial-getty@.service",
+                "-/sbin/agetty --keep-baud 115200 - $TERM")
+    _getty_file(rootfs, "etc/systemd/system/serial-getty@ttyAMA10.service.d/autologin.conf",
+                f'-/sbin/agetty -o "-p -- \\\\u" {option} --keep-baud 115200 - $TERM')
+    before = _contents(rootfs)
+    read(conf, target)
+    assert conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN")
+    assert conf.config.str("SERIAL_CONSOLE_AUTOLOGIN_USER") == "pi"
+    assert _contents(rootfs) == before
+
+
+@pytest.mark.parametrize("files, expected", [
+    # A different console's override must not leak into the selected one.
+    ([("etc", "ttyAMA1", "autologin", "--autologin pi")], False),
+    # Same filename: instance beats template within the same load path.
+    ([("etc", "", "autologin", "--autologin pi"),
+      ("etc", "ttyAMA10", "autologin", "")], False),
+    ([("etc", "", "autologin", ""),
+      ("etc", "ttyAMA10", "autologin", "--autologin pi")], True),
+    # Filename order applies across both instance/template and load paths.
+    ([("etc", "ttyAMA10", "10-login", "--autologin pi"),
+      ("usr/lib", "", "90-login", "")], False),
+    ([("etc", "ttyAMA10", "90-login", "--autologin pi"),
+      ("usr/lib", "", "10-login", "")], True),
+    # Same filename: /etc > /run > vendor, even across instance/template.
+    ([("etc", "", "login", ""),
+      ("usr/lib", "ttyAMA10", "login", "--autologin pi")], False),
+    ([("run", "ttyAMA10", "login", "--autologin pi"),
+      ("usr/lib", "ttyAMA10", "login", "")], True),
+])
+def test_serial_getty_dropin_precedence(conf, rootfs, target, files, expected):
+    (rootfs / "boot/firmware/cmdline.txt").write_text("console=ttyAMA10,115200\n")
+    _getty_file(rootfs, "usr/lib/systemd/system/serial-getty@.service", "-/sbin/agetty - $TERM")
+    for directory, instance, name, options in files:
+        _getty_file(rootfs,
+                    f"{directory}/systemd/system/serial-getty@{instance}.service.d/{name}.conf",
+                    f"-/sbin/agetty {options} - $TERM")
+    read(conf, target)
+    assert conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN") is expected
+    if expected:
+        assert conf.config.str("SERIAL_CONSOLE_AUTOLOGIN_USER") == "pi"
+
+
+def test_serial_getty_instance_fragment(conf, rootfs, target):
+    (rootfs / "boot/firmware/cmdline.txt").write_text("console=ttyS0,115200\n")
+    _getty_file(rootfs, "usr/lib/systemd/system/serial-getty@.service", "-/sbin/agetty - $TERM")
+    _getty_file(rootfs, "etc/systemd/system/serial-getty@ttyS0.service",
+                "-/sbin/agetty --autologin pi - $TERM")
+    read(conf, target)
+    assert conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN")
+    assert conf.config.str("SERIAL_CONSOLE_AUTOLOGIN_USER") == "pi"
+
+
+def test_serial_getty_masked_dropin(conf, rootfs, target):
+    (rootfs / "boot/firmware/cmdline.txt").write_text("console=ttyAMA10,115200\n")
+    _getty_file(rootfs, "usr/lib/systemd/system/serial-getty@ttyAMA10.service.d/login.conf",
+                "-/sbin/agetty --autologin pi - $TERM")
+    mask = rootfs / "etc/systemd/system/serial-getty@ttyAMA10.service.d/login.conf"
+    mask.parent.mkdir(parents=True)
+    mask.symlink_to("/dev/null")
+    read(conf, target)
+    assert not conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN")
+
+
+def test_offline_serial_alias_does_not_guess_a_getty_instance(conf, rootfs, target):
+    _getty_file(rootfs, "etc/systemd/system/serial-getty@ttyAMA10.service.d/autologin.conf",
+                "-/sbin/agetty --autologin pi - $TERM")
+    notes = read(conf, target)
+    assert not conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN")
+    assert any("instance-specific serial getty settings could not be imported" in n for n in notes)
+
+
+def test_unchanged_menu_preserves_external_serial_autologin(rootfs, monkeypatch, capsys):
+    (rootfs / "boot/firmware/cmdline.txt").write_text("console=ttyAMA10,115200\n")
+    _getty_file(rootfs, "etc/systemd/system/serial-getty@ttyAMA10.service.d/autologin.conf",
+                "-/sbin/agetty --autologin pi - $TERM")
+    before = _contents(rootfs)
+
+    def menu(conf):
+        assert conf.config.enabled("SERIAL_CONSOLE_AUTOLOGIN")
+        assert conf.config.str("SERIAL_CONSOLE_AUTOLOGIN_USER") == "pi"
+        return True
+
+    monkeypatch.setattr(cli, "_require_tty", lambda what: None)
+    monkeypatch.setattr(Configuration, "menu", menu)
+    assert main([str(rootfs), "-y"]) == 0
+    assert "Nothing to change." in capsys.readouterr().out
+    assert _contents(rootfs) == before
+
+
 def test_native_networkmanager_profile(conf, rootfs, target):
     (rootfs / "etc/NetworkManager/system-connections/Wired.nmconnection").write_text('''[connection]
 id=Wired connection 1
