@@ -2,7 +2,7 @@ import shutil
 
 import pytest
 
-from board_tune import eee
+from board_tune import cli, eee
 from board_tune.cli import build_plan
 from board_tune.errors import Error
 from board_tune.kconfig import Configuration
@@ -115,7 +115,7 @@ def test_live_probe_never_changes_running_link(setup, target, rootfs, monkeypatc
     assert all('--set-eee' not in cmd and 'restart' not in cmd for cmd in plan.commands)
 
 
-@pytest.mark.parametrize('output', ['EEE status: not supported\n', '', 'EEE status: unknown\n'])
+@pytest.mark.parametrize('output', ['', 'EEE status: unknown\n'])
 def test_live_unsupported_status_refused(setup, target, rootfs, monkeypatch, output):
     _, make = setup
     (rootfs / 'sys/class/net/end0').mkdir(parents=True)
@@ -126,15 +126,68 @@ def test_live_unsupported_status_refused(setup, target, rootfs, monkeypatch, out
     assert not target.exists(eee.paths('end0')[1])
 
 
-def test_live_probe_failure_is_not_reported_as_disabled(setup, target, rootfs, monkeypatch):
+@pytest.mark.parametrize('failed', [True, False])
+def test_live_unsupported_driver_skips_only_eee(setup, target, rootfs, monkeypatch, failed):
     _, make = setup
     (rootfs / 'sys/class/net/end0').mkdir(parents=True)
     target.live = True
     def run(argv, input=None):
-        raise Error('netlink error: Operation not supported')
+        if failed:
+            raise Error('netlink error: Operation not supported')
+        return 'EEE status: not supported\n'
     monkeypatch.setattr(target, 'run', run)
-    with pytest.raises(Error, match='no policy applied.*Operation not supported'):
+    plan = make('DISABLE')
+    assert any('requested policy skipped' in note for note in plan.notes)
+    assert not any('eee' in c.path for c in plan.changes())
+    assert any('system-connections' in c.path for c in plan.changes())
+
+
+def test_unchanged_policy_does_not_probe_unsupported_driver(setup, target, rootfs, monkeypatch):
+    _, make = setup
+    apply(make('DISABLE'))
+    target.live = True
+    def run(argv, input=None):
+        pytest.fail(f'unchanged EEE must not execute {argv}')
+    monkeypatch.setattr(target, 'run', run)
+    assert make('DISABLE').changes() == []
+
+
+def test_unknown_probe_errors_still_stop_apply(setup, target, rootfs, monkeypatch):
+    _, make = setup
+    (rootfs / 'sys/class/net/end0').mkdir(parents=True)
+    target.live = True
+    def run(argv, input=None):
+        raise Error('Operation not permitted')
+    monkeypatch.setattr(target, 'run', run)
+    with pytest.raises(Error, match='no policy applied.*Operation not permitted'):
         make('DISABLE')
+
+
+@pytest.mark.parametrize('edit_ssh', [False, True])
+def test_menu_unsupported_eee_note_survives_no_change_exit(setup, target, rootfs, monkeypatch, capsys, edit_ssh):
+    _, make = setup
+    apply(make('KEEP'))
+    (rootfs / 'sys/class/net/end0').mkdir(parents=True)
+    before = {str(p): p.read_bytes() for p in rootfs.rglob('*') if p.is_file() and not p.is_symlink()}
+    target.live = True
+    def run(argv, input=None):
+        assert '--show-eee' in argv
+        raise Error('netlink error: Operation not supported')
+    def menu(conf):
+        conf.set('NETWORK_EEE_DISABLE=y')
+        if edit_ssh:
+            conf.set('SSH_PORT=2222')
+        return True
+    monkeypatch.setattr(target, 'run', run)
+    monkeypatch.setattr(cli, 'open_target', lambda spec: target)
+    monkeypatch.setattr(cli, '_require_tty', lambda what: None)
+    monkeypatch.setattr(Configuration, 'menu', menu)
+    assert cli.main(['board@example', '--dry-run']) == 0
+    output = capsys.readouterr().out
+    assert 'EEE is not supported by the driver on end0; requested policy skipped' in output
+    assert 'board-tune-eee-' not in output
+    assert ('+Port 2222' in output) if edit_ssh else ('Nothing to change.' in output)
+    assert {str(p): p.read_bytes() for p in rootfs.rglob('*') if p.is_file() and not p.is_symlink()} == before
 
 
 def test_escaped_device_unit_for_dashed_interface(setup, target):

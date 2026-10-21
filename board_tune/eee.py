@@ -55,16 +55,27 @@ def plan_policy(ctx, iface):
         if plan.changed(path, dispatcher, *links):
             plan.note(f'EEE policy for {iface} removed; driver defaults return on reboot/device reattachment')
         return
+    if policy(plan, iface) == mode:
+        # Readback also selects ENABLE/DISABLE. An unchanged stored policy
+        # must not probe hardware or block unrelated Ethernet edits.
+        return
     ethtool = binary(plan)
     if ethtool is None:
         raise Error('EEE configuration requires ethtool installed on the target')
     if ctx.target.live:
         if not ctx.target.exists(f'/sys/class/net/{iface}'):
             raise Error(f'EEE: interface {iface} does not exist on the running target')
+        unsupported = False
         try:
             out = ctx.target.run(['env', 'LC_ALL=C', 'timeout', '8', ethtool, '--show-eee', iface])
         except Error as error:
-            raise Error(f'EEE support on {iface} could not be verified; no policy applied: {error}') from None
+            if 'operation not supported' not in str(error).lower():
+                raise Error(f'EEE support on {iface} could not be verified; no policy applied: {error}') from None
+            unsupported, out = True, ''
+        if unsupported or re.search(r'EEE status:\s*not supported\b', out, re.I):
+            plan.note(f'EEE is not supported by the driver on {iface}; requested policy skipped, '
+                      'existing EEE settings kept. Other changes can still be applied.')
+            return
         if not re.search(r'EEE status:\s*(enabled|disabled)\b', out):
             raise Error(f'EEE is not supported or its status is unavailable on {iface}; no policy applied')
     else:

@@ -375,3 +375,14 @@ ethtool 6.1. At this check wlan0 was connected to Sweet Home; SSH used end0.
 Pending: EEE on a capable adapter after boot, device reattachment and NM
 reconnect; Wi-Fi profile activation/reboot with driver-state verification.
 No network was activated or disconnected during this check.
+
+### Unsupported EEE exit follow-up (2026-10-21)
+
+Repeated the owner's interactive SSH command through a real PTY in dry-run:
+opening/exiting without edits returned Nothing to change; explicitly selecting
+NETWORK_EEE_DISABLE also exited successfully, explaining that end0's driver
+does not support EEE and the requested policy was skipped. No EEE service or
+dispatcher was installed. Original network, SSH and boot configuration hashes
+and metadata, plus the active Wi-Fi UUID, matched the initial snapshot.
+This supersedes the earlier whole-plan refusal: only the unsupported EEE
+request is now skipped; unknown status/access failures remain errors.

@@ -94,6 +94,16 @@ the new live guard correctly refuses application. EEE boot/hotplug/reconnect
 testing needs a supporting adapter; Wi-Fi policy activation/reboot behavior
 remains a hardware check. See docs/board-checks.md.
 
+2026-10-21 follow-up: an explicit EEE request on the owner's unsupported
+end0 driver previously aborted the entire plan after menu exit. Known driver
+unsupported responses now skip only EEE with a visible note, including when
+the resulting plan has no changes. Existing managed policies are left alone
+without a runtime probe. Unknown status/access errors still stop apply.
+Regression coverage includes combined SSH/EEE edits and unchanged-policy
+planning. Real SSH terminal checks passed both an unedited exit and an
+explicit unsupported Disable request in dry-run, preserving configuration
+hashes/metadata and active Wi-Fi UUID. Full suite: 364 passed, 1 root-only skip.
+
 ## Existing gaps to address alongside the stages
 
 2026-10-21 menu polish: replaced the text-only exit question with a centered

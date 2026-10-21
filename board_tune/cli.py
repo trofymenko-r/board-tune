@@ -125,6 +125,8 @@ def apply(args: argparse.Namespace, registry: Registry, config: Config,
         _, board = registry.board(config)
         print(f"Target: {target.description}, {board.title}")
         if not changes and not plan.pre_commands and not plan.commands:
+            for note in plan.notes:
+                print(f"note: {note}")
             print("Nothing to change.")
             return 0
         show_plan([], plan.pre_commands)

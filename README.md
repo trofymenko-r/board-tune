@@ -227,8 +227,12 @@ using.
 
 Advanced → Energy Efficient Ethernet (EEE) sets a persistent per-interface
 IEEE 802.3az policy: keep, disable, enable, or remove board-tune's policy.
-Requires `ethtool` and driver support; live targets are probed before any
-files are applied. Offline targets report that hardware support is unverified.
+Requires `ethtool` and driver support; new policies on live targets are probed
+before any files are applied. A driver reporting EEE unsupported skips that
+policy with an explanatory note, preserving existing EEE settings and allowing
+other changes to proceed. Unknown probe failures still stop application.
+An unchanged managed EEE policy does not probe the driver again. Offline
+targets report that hardware support is unverified.
 The policy applies at next boot/device attachment and, with NetworkManager,
 after reconnection. Applying it never changes the running link. A power-only
 edit preserves an existing matching IP profile and its additional settings.
