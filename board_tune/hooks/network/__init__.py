@@ -199,8 +199,13 @@ class WiredNetwork(Hook):
         if len(candidates) > 1:
             ctx.plan.note("multiple Ethernet profiles found; the menu shows one interface/profile")
         values = min(candidates, key=lambda item: item[0])[1]
-        from board_tune.eee import policy
-        values[f'NETWORK_EEE_{policy(ctx.plan, values["NETWORK_IFACE"])}'] = 'y'
+        from board_tune.eee import boot_disables_eee, policy
+        mode = policy(ctx.plan, values['NETWORK_IFACE'])
+        if mode == 'KEEP' and boot_disables_eee(ctx.target, values['NETWORK_IFACE']):
+            mode = 'DISABLE'
+            ctx.plan.note(f'EEE boot policy on {values["NETWORK_IFACE"]}: disabled for '
+                          'BCM54213PE at 100/1000 Mb/s by Device Tree; negotiated state not queried')
+        values[f'NETWORK_EEE_{mode}'] = 'y'
         return values
 
     def plan(self, ctx: Context) -> None:

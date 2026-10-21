@@ -121,7 +121,7 @@ def test_live_unsupported_status_refused(setup, target, rootfs, monkeypatch, out
     (rootfs / 'sys/class/net/end0').mkdir(parents=True)
     target.live = True
     monkeypatch.setattr(target, 'run', lambda argv, input=None: output)
-    with pytest.raises(Error, match='not supported or its status is unavailable'):
+    with pytest.raises(Error, match='status is unavailable or unrecognized'):
         make('DISABLE')
     assert not target.exists(eee.paths('end0')[1])
 
@@ -184,7 +184,7 @@ def test_menu_unsupported_eee_note_survives_no_change_exit(setup, target, rootfs
     monkeypatch.setattr(Configuration, 'menu', menu)
     assert cli.main(['board@example', '--dry-run']) == 0
     output = capsys.readouterr().out
-    assert 'EEE is not supported by the driver on end0; requested policy skipped' in output
+    assert 'EEE control via ethtool is unavailable on end0; requested policy skipped' in output
     assert 'board-tune-eee-' not in output
     assert ('+Port 2222' in output) if edit_ssh else ('Nothing to change.' in output)
     assert {str(p): p.read_bytes() for p in rootfs.rglob('*') if p.is_file() and not p.is_symlink()} == before
@@ -197,3 +197,58 @@ def test_escaped_device_unit_for_dashed_interface(setup, target):
     unit, path, _ = eee.paths('en-test0')
     assert unit == r'board-tune-eee-en\x2dtest0.service'
     assert r'BindsTo=sys-subsystem-net-devices-en\x2dtest0.device' in plan.read_text(path)
+
+
+def test_bcm54213_boot_disable_is_imported_and_needs_no_ethtool(setup, rootfs, target, monkeypatch):
+    conf, make = setup
+    apply(make('KEEP'))
+    phy = rootfs / 'sys/class/net/end0/phydev'
+    (phy / 'of_node').mkdir(parents=True)
+    (phy / 'phy_id').write_text('0x600d84a2\n')
+    for mode in ('100tx', '1000t'):
+        (phy / f'of_node/eee-broken-{mode}').touch()
+    target.live = True
+    def run(argv, input=None):
+        pytest.fail(f'boot disable must not execute {argv}')
+    monkeypatch.setattr(target, 'run', run)
+    notes = conf.read_target(Registry.load(), target)
+    assert conf.config.enabled('NETWORK_EEE_DISABLE')
+    assert any('negotiated state not queried' in note for note in notes)
+    plan = make('DISABLE')
+    assert plan.changes() == [] and plan.commands == []
+    assert any('already configured by Device Tree' in note for note in plan.notes)
+    assert not target.exists(eee.paths('end0')[1])
+
+
+@pytest.mark.parametrize('identifier,modes,live', [
+    ('0x600d84a2', ('100tx',), True),
+    ('0x600d84a2', ('1000t',), True),
+    ('0x600d84a2', ('100tx', '1000t'), False),
+    ('0x12345678', ('100tx', '1000t'), True),
+])
+def test_boot_disable_requires_exact_live_phy_and_both_modes(rootfs, target, identifier, modes, live):
+    phy = rootfs / 'sys/class/net/end0/phydev'
+    (phy / 'of_node').mkdir(parents=True)
+    (phy / 'phy_id').write_text(identifier + '\n')
+    for mode in modes:
+        (phy / f'of_node/eee-broken-{mode}').touch()
+    target.live = live
+    assert not eee.boot_disables_eee(target, 'end0')
+
+
+def test_bcm54213_enable_is_not_mistaken_for_boot_disable(setup, rootfs, target, monkeypatch):
+    _, make = setup
+    apply(make('KEEP'))
+    phy = rootfs / 'sys/class/net/end0/phydev'
+    (phy / 'of_node').mkdir(parents=True)
+    (phy / 'phy_id').write_text('0x600d84a2\n')
+    for mode in ('100tx', '1000t'):
+        (phy / f'of_node/eee-broken-{mode}').touch()
+    target.live = True
+    def run(argv, input=None):
+        raise Error('netlink error: Operation not supported')
+    monkeypatch.setattr(target, 'run', run)
+    plan = make('ENABLE')
+    assert plan.changes() == []
+    assert any('control via ethtool is unavailable' in note for note in plan.notes)
+    assert any('Device Tree blocks BCM54213PE EEE' in note for note in plan.notes)

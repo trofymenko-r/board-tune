@@ -52,6 +52,8 @@ choice
 	  driver support. A persistent per-interface policy applies on next
 	  boot/device attachment and NetworkManager reconnect, never now.
 	  Removing the policy returns control to the driver/network manager.
+	  On BCM54213PE, running Device Tree restrictions at 100/1000 Mb/s
+	  are imported as a disabled boot policy, separately from link state.
 
 config NETWORK_EEE_KEEP
 	bool "Keep existing policy"

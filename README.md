@@ -228,9 +228,11 @@ using.
 Advanced → Energy Efficient Ethernet (EEE) sets a persistent per-interface
 IEEE 802.3az policy: keep, disable, enable, or remove board-tune's policy.
 Requires `ethtool` and driver support; new policies on live targets are probed
-before any files are applied. A driver reporting EEE unsupported skips that
-policy with an explanatory note, preserving existing EEE settings and allowing
-other changes to proceed. Unknown probe failures still stop application.
+before any files are applied. If the driver lacks the ethtool EEE interface,
+that policy is skipped with an explanatory note, preserving existing EEE
+settings and allowing other changes to proceed. This does not establish
+whether the hardware supports EEE or whether the link uses it. Unknown probe
+failures still stop application.
 An unchanged managed EEE policy does not probe the driver again. Offline
 targets report that hardware support is unverified.
 The policy applies at next boot/device attachment and, with NetworkManager,
@@ -240,6 +242,15 @@ Removing the policy returns control to driver/network-manager defaults after
 reboot/device reattachment; it does not immediately change the hardware state.
 The device-bound systemd service works with either network backend, including
 NetworkManager versions without the newer `ethtool.eee-enabled` property.
+
+On a running Pi 5 with BCM54213PE, readback also recognizes both
+`eee-broken-100tx` and `eee-broken-1000t` in the PHY's Device Tree node as a
+disabled boot policy for its 100/1000 Mb/s EEE modes. Disable then needs no
+additional ethtool service. These flags are already present in the
+[Raspberry Pi 6.12 Device Tree](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm64/boot/dts/broadcom/bcm2712-rpi-5-b.dts).
+This is configuration readback, not measurement of the negotiated PHY state;
+Enable still requires a working control interface. No PHY registers or boot
+files are modified to import this policy.
 
 ### Wi-Fi (`WIFI`)
 

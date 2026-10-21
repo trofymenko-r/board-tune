@@ -25,6 +25,20 @@ def binary(plan):
                  if plan.exists(p)), None)
 
 
+def boot_disables_eee(target, iface):
+    """Recognize the BCM54213PE boot restriction, not negotiated PHY state.
+
+    Both modes must be blocked, and this exact gigabit PHY identified. These
+    two flags alone do not disable all EEE modes on an arbitrary faster PHY.
+    """
+    if not target.live:
+        return False
+    phy = f'/sys/class/net/{iface}/phydev'
+    return ((target.read(f'{phy}/phy_id') or b'').strip().lower() == b'0x600d84a2'
+            and all(target.exists(f'{phy}/of_node/eee-broken-{mode}')
+                    for mode in ('100tx', '1000t')))
+
+
 def policy(plan, iface):
     _, path, _ = paths(iface)
     text = plan.read_text(path) or ''
@@ -59,6 +73,12 @@ def plan_policy(ctx, iface):
         # Readback also selects ENABLE/DISABLE. An unchanged stored policy
         # must not probe hardware or block unrelated Ethernet edits.
         return
+    boot_disabled = boot_disables_eee(ctx.target, iface)
+    if mode == 'DISABLE' and policy(plan, iface) == 'KEEP' and boot_disabled:
+        plan.note(f'EEE disable on {iface} is already configured by Device Tree for '
+                  'BCM54213PE (100/1000 Mb/s); no ethtool policy added. '
+                  'This is boot policy, not a measurement of negotiated EEE state.')
+        return
     ethtool = binary(plan)
     if ethtool is None:
         raise Error('EEE configuration requires ethtool installed on the target')
@@ -73,11 +93,14 @@ def plan_policy(ctx, iface):
                 raise Error(f'EEE support on {iface} could not be verified; no policy applied: {error}') from None
             unsupported, out = True, ''
         if unsupported or re.search(r'EEE status:\s*not supported\b', out, re.I):
-            plan.note(f'EEE is not supported by the driver on {iface}; requested policy skipped, '
-                      'existing EEE settings kept. Other changes can still be applied.')
+            plan.note(f'EEE control via ethtool is unavailable on {iface}; requested policy skipped, '
+                      'existing EEE settings kept. This does not establish hardware EEE support '
+                      'or negotiated state. Other changes can still be applied.')
+            if boot_disabled:
+                plan.note(f'Device Tree blocks BCM54213PE EEE on {iface} at 100/1000 Mb/s.')
             return
         if not re.search(r'EEE status:\s*(enabled|disabled)\b', out):
-            raise Error(f'EEE is not supported or its status is unavailable on {iface}; no policy applied')
+            raise Error(f'EEE status is unavailable or unrecognized on {iface}; no policy applied')
     else:
         plan.note(f'EEE hardware support on {iface} cannot be verified on an offline target')
     device = f'sys-subsystem-net-devices-{_escape(iface)}.device'

@@ -104,6 +104,19 @@ planning. Real SSH terminal checks passed both an unedited exit and an
 explicit unsupported Disable request in dry-run, preserving configuration
 hashes/metadata and active Wi-Fi UUID. Full suite: 364 passed, 1 root-only skip.
 
+2026-10-21 correction after owner feedback: EOPNOTSUPP from ethtool does NOT
+establish lack of EEE hardware support. Real Pi 5 inspection identified macb
+and BCM54213PE (PHY ID 0x600d84a2), with eee-broken-100tx and
+eee-broken-1000t in both the running DT and installed base DTB. Readback now
+imports these as a disabled BOOT policy for that exact PHY, and Disable
+needs no extra service. The negotiated hardware state remains unmeasured;
+other PHYs or partial flags are not generalized. Enable through unavailable
+ethtool callbacks is still skipped with accurate wording. The earlier claim
+that testing requires a different capable adapter was unjustified.
+Real SSH PTY checks cover unchanged, Disable and Enable exits in dry-run,
+preserving configuration/metadata and active Wi-Fi. No PHY registers or boot
+files were changed. Full suite: 370 passed, 1 root-only skip.
+
 ## Existing gaps to address alongside the stages
 
 2026-10-21 menu polish: replaced the text-only exit question with a centered

@@ -386,3 +386,28 @@ dispatcher was installed. Original network, SSH and boot configuration hashes
 and metadata, plus the active Wi-Fi UUID, matched the initial snapshot.
 This supersedes the earlier whole-plan refusal: only the unsupported EEE
 request is now skipped; unknown status/access failures remain errors.
+
+### BCM54213PE boot policy correction (2026-10-21)
+
+The earlier interpretation that end0's EOPNOTSUPP proves lack of EEE support
+was incorrect. Read-only inspection identified macb and Broadcom BCM54213PE,
+PHY ID 0x600d84a2. Both /sys/class/net/end0/phydev/of_node/eee-broken-100tx
+and eee-broken-1000t exist. Decompiling the installed base DTB confirmed the
+same properties, independent of a board-tune policy or config.txt EEE line.
+
+The running DT disables EEE advertisement for these modes; this is a boot
+configuration observation, not a direct read of the current negotiated PHY
+state. Reference Raspberry Pi sources define the same restrictions and the
+maintainer discussion distinguishes hardware capability from missing MAC
+driver EEE support:
+
+- https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm64/boot/dts/broadcom/bcm2712-rpi-5-b.dts
+- https://github.com/raspberrypi/linux/issues/6855
+
+Readback now shows Disable for this exact PHY with both flags, explaining
+that it is boot policy. Explicit Disable creates no redundant service.
+Real SSH PTY dry-runs passed unchanged, Disable and Enable requests, with
+accurate unavailable-control messaging for Enable and no hardware capability
+claim. Network/SSH/boot hashes and metadata, plus active Wi-Fi UUID, matched
+the initial snapshot. No MDIO/PHY writes, link renegotiation or boot-file
+changes were performed. Direct PHY-state verification remains pending.
