@@ -75,6 +75,25 @@ Focused Wi-Fi/menu verification: 29 passed. SSH PTY table/bar rendering and
 resize passed at 60/80/100 columns, exiting with Nothing to change.
 Data selection and network actions are unchanged.
 
+## Network power saving (2026-10-21)
+
+Ethernet Advanced offers Keep / Disable / Enable / Remove for per-interface
+EEE. Persistent device-bound systemd policy plus an NM activation dispatcher
+supports both network backends and older NM releases. No live link change
+is scheduled; live hardware support is checked first. Power-only edits
+preserve existing IP profiles. Wi-Fi profile editor and batch configuration
+offer Keep / Disable / Enable / NM default / Ignore, preserving unknown and
+unrelated settings. Details separates saved Wi-Fi policy from actual driver
+state. Terminal review/apply, idempotency, removal, ownership and unsupported
+driver guards are covered. Full suite: 353 passed, 1 root-only skip.
+
+Pi 5/NM 1.42.4 accepted all four explicit Wi-Fi values in a temporary inactive
+profile; original profile contents/metadata, active UUID and driver power-save
+state remained unchanged. Its Ethernet driver reports EEE unsupported and
+the new live guard correctly refuses application. EEE boot/hotplug/reconnect
+testing needs a supporting adapter; Wi-Fi policy activation/reboot behavior
+remains a hardware check. See docs/board-checks.md.
+
 ## Existing gaps to address alongside the stages
 
 - Explicit distinction between leaving a feature unchanged and disabling it.

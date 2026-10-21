@@ -221,6 +221,18 @@ later) or a systemd-networkd file. Changes take effect on the next
 boot, so a live board never drops the connection that board-tune is
 using.
 
+Advanced → Energy Efficient Ethernet (EEE) sets a persistent per-interface
+IEEE 802.3az policy: keep, disable, enable, or remove board-tune's policy.
+Requires `ethtool` and driver support; live targets are probed before any
+files are applied. Offline targets report that hardware support is unverified.
+The policy applies at next boot/device attachment and, with NetworkManager,
+after reconnection. Applying it never changes the running link. A power-only
+edit preserves an existing matching IP profile and its additional settings.
+Removing the policy returns control to driver/network-manager defaults after
+reboot/device reattachment; it does not immediately change the hardware state.
+The device-bound systemd service works with either network backend, including
+NetworkManager versions without the newer `ethtool.eee-enabled` property.
+
 ### Wi-Fi (`WIFI`)
 
 With a target, the Wi-Fi menu opens a manager showing live connection/IP
@@ -262,6 +274,28 @@ WPA2/WPA3 Personal, WPA3-only or open security, hidden SSID, autoconnect,
 priority, DHCP/static IPv4, gateway and DNS. Existing profiles remain in
 place, so repeat with another SSID to provision multiple known networks.
 Enterprise/WEP/AP profiles are not imported or managed by this hook.
+
+Edit profile → Power saving controls Wi-Fi power saving for each network
+profile, separately from wired Ethernet EEE. Choices are keep, disabled,
+enabled, NetworkManager default, and leave driver state unchanged. Details
+shows the saved policy and, for an active profile, the actual driver state
+when `iw` is available. Save only applies the policy on the next connection;
+Connect now uses the existing guarded reconnection. Batch profiles expose
+the same setting as `WIFI_POWERSAVE_*`. For example:
+
+```
+CONFIG_NETWORK=y
+CONFIG_NETWORK_IFACE="end0"
+CONFIG_NETWORK_EEE_DISABLE=y
+CONFIG_WIFI=y
+CONFIG_WIFI_IFACE="wlan0"
+CONFIG_WIFI_SSID="Home"
+CONFIG_WIFI_POWERSAVE_DISABLE=y
+```
+
+The Wi-Fi example requires the usual credentials or a matching stored key.
+Driver support determines whether the requested power mode takes effect;
+the configured policy and current driver state are displayed separately.
 
 ```config
 CONFIG_WIFI=y

@@ -11,6 +11,31 @@ PROFILE_DIRS = ("/etc/NetworkManager/system-connections",
                 "/run/NetworkManager/system-connections",
                 "/usr/lib/NetworkManager/system-connections")
 
+POWERSAVE = {'default': '0', 'ignore': '1', 'disable': '2', 'enable': '3'}
+POWERSAVE_LABELS = {'keep': 'Keep existing setting', 'disable': 'Disabled', 'enable': 'Enabled',
+                    'default': 'NetworkManager default', 'ignore': 'Leave driver state unchanged'}
+
+
+def powersave_mode(section):
+    value = _first(section, 'powersave')
+    return next((mode for mode, number in POWERSAVE.items() if number == value), 'keep')
+
+
+def power_status(target, iface):
+    """Driver state is distinct from a saved profile's requested policy."""
+    if not target.live:
+        return 'unavailable (offline)'
+    iw = next((p for p in ('/usr/sbin/iw', '/usr/bin/iw', '/sbin/iw') if target.exists(p)), None)
+    if iw:
+        try:
+            out = target.run(['env', 'LC_ALL=C', 'timeout', '8', iw, 'dev', iface, 'get', 'power_save'])
+            for line in out.splitlines():
+                if line.strip() in ('Power save: on', 'Power save: off'):
+                    return line.strip().split(': ', 1)[1]
+        except Error:
+            pass
+    return 'unavailable (iw/driver support required)'
+
 
 def fields(line):
     """Split nmcli's escaped terse fields, including escaped colons/backslashes."""
@@ -241,6 +266,7 @@ class Editor:
     address: str = ''
     gateway: str = ''
     dns: str = ''
+    powersave: str = 'keep'
 
     @classmethod
     def from_profile(cls, profile):
@@ -257,7 +283,8 @@ class Editor:
                    hidden=_first(wireless, 'hidden').lower() in ('true', 'yes', '1'),
                    autoconnect=profile.autoconnect, priority=profile.priority,
                    method=_first(ip, 'method', 'auto'), address=address,
-                   gateway=_first(ip, 'gateway', gateway), dns=_first(ip, 'dns').replace(';', ' ').strip())
+                   gateway=_first(ip, 'gateway', gateway), dns=_first(ip, 'dns').replace(';', ' ').strip(),
+                   powersave=powersave_mode(wireless))
 
     def render(self, profile=None):
         import ipaddress
@@ -322,6 +349,10 @@ class Editor:
                                if profile and profile.auth == self.auth else None)},
             'ipv4': ip,
         }
+        if self.powersave != 'keep':
+            if self.powersave not in POWERSAVE:
+                raise Error('Unsupported Wi-Fi power saving mode')
+            updates[wsection]['powersave'] = POWERSAVE[self.powersave]
         if profile is None:
             updates['ipv6'] = {'method': 'auto'}
         text = profile.text if profile else ''

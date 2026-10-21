@@ -24,6 +24,64 @@ def test_escaped_nmcli_fields():
     assert wifi.fields(r'name\:with\\slash:uuid:wifi:wlan0') == ['name:with\\slash', 'uuid', 'wifi', 'wlan0']
 
 
+@pytest.mark.parametrize('section', ['wifi', '802-11-wireless'])
+@pytest.mark.parametrize('mode,number', list(wifi.POWERSAVE.items()))
+def test_editor_power_saving_modes_preserve_profile(saved, target, section, mode, number):
+    path = saved('Lab', 'uuid-lab')
+    path.write_text(path.read_text().replace('[wifi]', f'[{section}]\npowersave=3\nband=bg'))
+    profile = wifi.inventory(target)[0]
+    editor = wifi.Editor.from_profile(profile)
+    assert editor.powersave == 'enable'
+    editor.powersave = mode
+    identifier, text = editor.render(profile)
+    assert identifier == 'uuid-lab' and 'psk=private-key' in text and 'band=bg' in text
+    assert f'powersave={number}\n' in text
+    assert text.count('powersave=') == 1
+    assert f'[{section}]\n' in text
+    if section != 'wifi':
+        assert '[wifi]\n' not in text
+    assert 'powersave=3' in path.read_text()  # edit is still only a draft
+
+
+@pytest.mark.parametrize('number', ['', '2', '42'])
+def test_editor_keep_preserves_unset_and_unknown_power_saving(saved, target, number):
+    path = saved('Lab', 'uuid-lab')
+    if number:
+        path.write_text(path.read_text().replace('[wifi]', f'[wifi]\npowersave={number}'))
+    profile = wifi.inventory(target)[0]
+    editor = wifi.Editor.from_profile(profile)
+    editor.powersave = 'keep'
+    _, text = editor.render(profile)
+    if number:
+        assert f'powersave={number}\n' in text
+    else:
+        assert 'powersave=' not in text
+
+
+def test_new_profile_and_invalid_power_mode():
+    editor = wifi.Editor(ssid='Open', auth='open')
+    assert 'powersave=' not in editor.render()[1]
+    editor.powersave = 'disable'
+    assert 'powersave=2\n' in editor.render()[1]
+    editor.powersave = 'bad'
+    with pytest.raises(wifi.Error, match='Unsupported Wi-Fi power saving mode'):
+        editor.render()
+
+
+def test_driver_power_status_uses_absolute_iw(target, rootfs, monkeypatch):
+    tool = rootfs / 'usr/sbin/iw'
+    tool.parent.mkdir(parents=True, exist_ok=True)
+    tool.touch()
+    target.live = True
+    calls = []
+    def run(argv, input=None):
+        calls.append(argv)
+        return 'Power save: off\n'
+    monkeypatch.setattr(target, 'run', run)
+    assert wifi.power_status(target, 'wlan0') == 'off'
+    assert calls[0][-5:] == ['/usr/sbin/iw', 'dev', 'wlan0', 'get', 'power_save']
+
+
 def test_offline_inventory_keeps_all_profiles_and_secrets_private(saved, target):
     saved('A', 'a', 'Same SSID')
     saved('B', 'b', 'Same SSID', auth='wpa-eap')

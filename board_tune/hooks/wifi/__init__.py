@@ -98,7 +98,7 @@ class Wifi(Hook):
     order = 35
 
     def read(self, ctx):
-        from board_tune.wifi import active_connections
+        from board_tune.wifi import active_connections, powersave_mode
 
         try:
             active = active_connections(ctx.target)
@@ -116,6 +116,7 @@ class Wifi(Hook):
                 continue
             values = {key.replace("NETWORK", "WIFI", 1): value for key, value in values.items()}
             wifi = data.get("wifi", data.get("802-11-wireless", {}))
+            values[f'WIFI_POWERSAVE_{powersave_mode(wifi).upper()}'] = 'y'
             connection = data.get("connection", {})
             values.update(WIFI_SSID=ssid, WIFI_PRIORITY=str(priority),
                           WIFI_HIDDEN="y" if _first(wifi, "hidden").lower() in ("true", "yes", "1") else "n",
@@ -157,6 +158,18 @@ class Wifi(Hook):
         encoded = ("".join(f"{byte};" for byte in ssid.encode())
                    if re.fullmatch(r"(?:[0-9]+;)+", ssid) else _escape(ssid))
         lines += [f"ssid={encoded}", f"hidden={'true' if cfg.enabled('WIFI_HIDDEN') else 'false'}"]
+        from board_tune.wifi import POWERSAVE
+        power = next((value for mode, value in POWERSAVE.items()
+                      if cfg.enabled(f'WIFI_POWERSAVE_{mode.upper()}')), None)
+        if power is None:
+            # Keep includes values not understood by this version. Prefer the
+            # already managed file over another matching network profile.
+            old_path = f'{NM_DIR}/system-connections/{name}.nmconnection'
+            old = _sections(plan.read_text(old_path) or '')
+            data = old or (matching[0][4] if matching else {})
+            power = _first(data.get('wifi', data.get('802-11-wireless', {})), 'powersave')
+        if power:
+            lines.append(f'powersave={power}')
         if password is not None:
             lines += ["", "[wifi-security]", f"key-mgmt={auth}", "psk-flags=0", f"psk={_escape(password)}"]
             if auth == "sae":

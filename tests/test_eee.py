@@ -1,0 +1,146 @@
+import shutil
+
+import pytest
+
+from board_tune import eee
+from board_tune.cli import build_plan
+from board_tune.errors import Error
+from board_tune.kconfig import Configuration
+from board_tune.registry import Registry
+
+
+@pytest.fixture
+def setup(rootfs, target, tmp_path):
+    tool = rootfs / 'usr/sbin/ethtool'
+    tool.parent.mkdir(parents=True, exist_ok=True)
+    tool.touch()
+    reg = Registry.load()
+    conf = Configuration(reg, str(tmp_path))
+    for setting in ('BOARD_RPI5=y', 'NETWORK=y', 'NETWORK_IFACE=end0'):
+        conf.set(setting)
+
+    def make(mode):
+        conf.set(f'NETWORK_EEE_{mode}=y')
+        return build_plan(reg, conf.config, target,
+                          skip_hooks={h.name for h in reg.hooks if h.name != 'network'})
+    return conf, make
+
+
+def apply(plan):
+    plan.apply(plan.changes())
+
+
+def test_default_keeps_eee_unmanaged(setup):
+    _, make = setup
+    plan = make('KEEP')
+    assert not any('eee' in c.path for c in plan.changes())
+
+
+def test_power_only_change_preserves_foreign_ip_profile(setup, rootfs):
+    _, make = setup
+    path = rootfs / 'etc/NetworkManager/system-connections/admin.nmconnection'
+    text = ('[connection]\nid=Admin\ntype=ethernet\ninterface-name=end0\n'
+            '[ipv4]\nmethod=auto\nroute1=10.0.0.0/8,192.168.1.1\n')
+    path.write_text(text)
+    plan = make('DISABLE')
+    assert not any('system-connections' in c.path for c in plan.changes())
+    apply(plan)
+    assert path.read_text() == text
+    assert make('KEEP').changes() == []
+
+
+@pytest.mark.parametrize('mode,state', [('DISABLE', 'off'), ('ENABLE', 'on')])
+def test_persistent_policy_readback_idempotency_and_removal(setup, target, rootfs, mode, state):
+    conf, make = setup
+    plan = make(mode)
+    apply(plan)
+    unit, path, dispatcher = eee.paths('end0')
+    text = target.read(path).decode()
+    assert f'ExecStart=/usr/sbin/ethtool --set-eee end0 eee {state}\n' in text
+    assert 'BindsTo=sys-subsystem-net-devices-end0.device\n' in text
+    assert (rootfs / f'etc/systemd/system/sys-subsystem-net-devices-end0.device.wants/{unit}').is_symlink()
+    assert target.stat(dispatcher).mode & 0o777 == 0o755
+    assert f'"$2" = up' in target.read(dispatcher).decode()
+    assert eee.policy(make('KEEP'), 'end0') == mode
+    conf.read_target(Registry.load(), target)
+    assert conf.config.enabled(f'NETWORK_EEE_{mode}')
+    assert make(mode).changes() == []
+    assert make('KEEP').changes() == []
+    apply(make('REMOVE'))
+    assert not target.exists(path) and not target.exists(dispatcher)
+    assert eee.policy(make('KEEP'), 'end0') == 'KEEP'
+    assert make('REMOVE').changes() == []
+
+
+def test_networkd_policy_without_dispatcher(setup, rootfs, target):
+    _, make = setup
+    shutil.rmtree(rootfs / 'etc/NetworkManager')
+    apply(make('DISABLE'))
+    assert target.exists(eee.paths('end0')[1])
+    assert not target.exists(eee.paths('end0')[2])
+
+
+def test_missing_ethtool_does_not_write_network_files(setup, rootfs):
+    _, make = setup
+    (rootfs / 'usr/sbin/ethtool').unlink()
+    with pytest.raises(Error, match='requires ethtool'):
+        make('DISABLE')
+    assert not list((rootfs / 'etc/NetworkManager/system-connections').iterdir())
+
+
+@pytest.mark.parametrize('owned', [1, 2])
+@pytest.mark.parametrize('mode', ['DISABLE', 'REMOVE'])
+def test_foreign_files_are_preserved(setup, rootfs, owned, mode):
+    _, make = setup
+    path = rootfs / eee.paths('end0')[owned].lstrip('/')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('administrator setting\n')
+    with pytest.raises(Error, match='not owned by board-tune'):
+        make(mode)
+    assert path.read_text() == 'administrator setting\n'
+
+
+def test_live_probe_never_changes_running_link(setup, target, rootfs, monkeypatch):
+    _, make = setup
+    (rootfs / 'sys/class/net/end0').mkdir(parents=True)
+    target.live = True
+    calls = []
+    def run(argv, input=None):
+        calls.append(argv)
+        return 'EEE settings for end0:\n\tEEE status: enabled - inactive\n'
+    monkeypatch.setattr(target, 'run', run)
+    plan = make('DISABLE')
+    assert len(calls) == 1 and calls[0][-2:] == ['--show-eee', 'end0']
+    assert plan.commands == [['systemctl', 'daemon-reload'], ['nmcli', 'connection', 'reload']]
+    assert all('--set-eee' not in cmd and 'restart' not in cmd for cmd in plan.commands)
+
+
+@pytest.mark.parametrize('output', ['EEE status: not supported\n', '', 'EEE status: unknown\n'])
+def test_live_unsupported_status_refused(setup, target, rootfs, monkeypatch, output):
+    _, make = setup
+    (rootfs / 'sys/class/net/end0').mkdir(parents=True)
+    target.live = True
+    monkeypatch.setattr(target, 'run', lambda argv, input=None: output)
+    with pytest.raises(Error, match='not supported or its status is unavailable'):
+        make('DISABLE')
+    assert not target.exists(eee.paths('end0')[1])
+
+
+def test_live_probe_failure_is_not_reported_as_disabled(setup, target, rootfs, monkeypatch):
+    _, make = setup
+    (rootfs / 'sys/class/net/end0').mkdir(parents=True)
+    target.live = True
+    def run(argv, input=None):
+        raise Error('netlink error: Operation not supported')
+    monkeypatch.setattr(target, 'run', run)
+    with pytest.raises(Error, match='no policy applied.*Operation not supported'):
+        make('DISABLE')
+
+
+def test_escaped_device_unit_for_dashed_interface(setup, target):
+    conf, make = setup
+    conf.set('NETWORK_IFACE=en-test0')
+    plan = make('DISABLE')
+    unit, path, _ = eee.paths('en-test0')
+    assert unit == r'board-tune-eee-en\x2dtest0.service'
+    assert r'BindsTo=sys-subsystem-net-devices-en\x2dtest0.device' in plan.read_text(path)

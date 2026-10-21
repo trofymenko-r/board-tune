@@ -350,10 +350,16 @@ class WifiManager:
             from board_tune.hooks.network import _sections
             data = _sections(profile.text)
             lines = [f'UUID: {profile.uuid}', f'Autoconnect: {profile.autoconnect}', f'Priority: {profile.priority}']
+            wireless = data.get('wifi', data.get('802-11-wireless', {}))
+            mode = wifi.powersave_mode(wireless)
+            raw = wireless.get('powersave', [''])[0]
+            label = wifi.POWERSAVE_LABELS[mode] if mode != 'keep' else f'Unspecified/kept ({raw or "default"})'
+            lines.append(f'Power saving (profile): {label}')
             for key in ('method', 'address1', 'gateway', 'dns'):
                 lines.append(f'IPv4 {key}: {data.get("ipv4", {}).get(key, [""])[0]}')
             if profile.active:
                 lines += wifi.device_status(self.target, profile.active)
+                lines.append(f'Power saving (driver): {wifi.power_status(self.target, profile.active)}')
             self.dialog.message(profile.ssid, '\n'.join(lines))
         elif action == 1:
             self.live(profile)
@@ -437,8 +443,16 @@ class WifiManager:
                           ('Security', 'auth'), ('Password (empty: keep stored)', 'password'),
                           ('Hidden SSID', 'hidden'), ('Autoconnect', 'autoconnect'), ('Priority', 'priority'),
                           ('IPv4 mode', 'method'), ('IPv4 address / prefix', 'address'),
-                          ('Gateway (static mode)', 'gateway'), ('DNS servers', 'dns')]
-                labels = [f'{label}: {"(hidden)" if key == "password" else getattr(editor, key)}' for label, key in values]
+                          ('Gateway (static mode)', 'gateway'), ('DNS servers', 'dns'),
+                          ('Power saving', 'powersave')]
+                labels = []
+                for label, key in values:
+                    value = getattr(editor, key)
+                    if key == 'password':
+                        value = '(hidden)'
+                    elif key == 'powersave':
+                        value = wifi.POWERSAVE_LABELS[value]
+                    labels.append(f'{label}: {value}')
                 action = self.dialog.choose('Edit Wi-Fi profile', ['Save only: review/apply when leaving menuconfig'],
                                             [*labels, 'Save only', 'Connect now'])
                 if action is None:
@@ -460,9 +474,11 @@ class WifiManager:
                 value = getattr(editor, key)
                 if key in ('hidden', 'autoconnect'):
                     setattr(editor, key, not value)
-                elif key in ('auth', 'method'):
-                    choices = ('open', 'wpa-psk', 'sae') if key == 'auth' else ('auto', 'manual')
-                    index = self.dialog.choose(label, [], list(choices))
+                elif key in ('auth', 'method', 'powersave'):
+                    choices = (tuple(wifi.POWERSAVE_LABELS) if key == 'powersave' else
+                               ('open', 'wpa-psk', 'sae') if key == 'auth' else ('auto', 'manual'))
+                    labels = [wifi.POWERSAVE_LABELS[c] for c in choices] if key == 'powersave' else list(choices)
+                    index = self.dialog.choose(label, ['Applies to this profile on its next connection.'] if key == 'powersave' else [], labels)
                     if index is not None:
                         setattr(editor, key, choices[index])
                 else:

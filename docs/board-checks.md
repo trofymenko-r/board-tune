@@ -349,3 +349,29 @@ Final inspection found exactly the three original Wi-Fi profiles, the original
 active UUID, no outstanding checkpoints and no request.json credential files.
 DHCP assigned wlan0 192.168.1.157/24 after reconnection; Ethernet SSH remains
 192.168.0.11/24. Restoring a DHCP profile does not pin its former lease address.
+
+## Network power saving (2026-10-21)
+
+Pi 5, Debian 12, kernel 6.12.96+rpt-rpi-2712, NetworkManager 1.42.4,
+ethtool 6.1. At this check wlan0 was connected to Sweet Home; SSH used end0.
+
+- `/usr/sbin/iw dev wlan0 get power_save` reported off. The UI runtime
+  reader uses the absolute path, so a login PATH without /usr/sbin works.
+- Created a private temporary Wi-Fi profile with its own random UUID and
+  autoconnect=false, using the existing profile editor serializer. Loaded
+  each of powersave=0/1/2/3 and verified NM reported default/ignore/disable/
+  enable. Never activated this profile; deleted it after the checks.
+- Original Wi-Fi profile hashes and mode/uid/gid metadata, active Wi-Fi UUID
+  and actual driver power-saving state matched the initial snapshot.
+- `ethtool --show-eee end0` returned Operation not supported. The new live
+  EEE planning guard rejected the request before any writes. NM also lacks
+  `ethtool.eee-enabled` on this version, motivating the portable service/
+  dispatcher implementation rather than generating an unsupported NM key.
+- Local `systemd-analyze verify` accepted generated units for eth0 and a
+  dashed interface name; `sh -n` accepted both dispatchers. Rootfs tests cover
+  NM/networkd policies, repeat apply, Keep, removal, foreign-file protection,
+  no live activation, status errors, saved Wi-Fi values and terminal editing.
+
+Pending: EEE on a capable adapter after boot, device reattachment and NM
+reconnect; Wi-Fi profile activation/reboot with driver-state verification.
+No network was activated or disconnected during this check.

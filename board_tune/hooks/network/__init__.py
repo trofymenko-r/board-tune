@@ -198,11 +198,27 @@ class WiredNetwork(Hook):
             return {"NETWORK": "n"}
         if len(candidates) > 1:
             ctx.plan.note("multiple Ethernet profiles found; the menu shows one interface/profile")
-        return min(candidates, key=lambda item: item[0])[1]
+        values = min(candidates, key=lambda item: item[0])[1]
+        from board_tune.eee import policy
+        values[f'NETWORK_EEE_{policy(ctx.plan, values["NETWORK_IFACE"])}'] = 'y'
+        return values
 
     def plan(self, ctx: Context) -> None:
         s = settings(ctx.config)
-        if self._backend(ctx) == "nm":
+        from board_tune.eee import plan_policy, policy
+        plan_policy(ctx, s.iface)
+        backend = self._backend(ctx)
+        if not ctx.config.enabled('NETWORK_EEE_KEEP') or policy(ctx.plan, s.iface) != 'KEEP':
+            # A power-only edit must not create a competing IPv4 profile or
+            # discard administrator settings from an existing connection.
+            current = self.read(ctx)
+            desired = _network_values(s.iface, 'manual' if s.address else 'auto',
+                                      str(s.address or ''), str(s.gateway or ''),
+                                      ' '.join(map(str, s.dns)))
+            backend_symbol = 'NETWORK_BACKEND_NM' if backend == 'nm' else 'NETWORK_BACKEND_NETWORKD'
+            if current.get(backend_symbol) == 'y' and all(current.get(k) == v for k, v in desired.items()):
+                return
+        if backend == "nm":
             path, text = networkmanager_keyfile(s)
             ctx.plan.write(path, text, mode=0o600, owner=(0, 0))
             if ctx.plan.changed(path):

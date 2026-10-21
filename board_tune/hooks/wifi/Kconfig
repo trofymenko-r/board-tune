@@ -54,6 +54,31 @@ config WIFI_PRIORITY
 	range -999 999
 	default 100
 
+choice
+	prompt "Wi-Fi power saving"
+	default WIFI_POWERSAVE_KEEP
+	help
+	  Wi-Fi power saving is separate from wired Ethernet EEE. This
+	  setting belongs to this network profile and applies when it next
+	  connects (or after reboot). Keep preserves the stored value.
+
+config WIFI_POWERSAVE_KEEP
+	bool "Keep existing setting"
+
+config WIFI_POWERSAVE_DISABLE
+	bool "Disable power saving"
+
+config WIFI_POWERSAVE_ENABLE
+	bool "Enable power saving"
+
+config WIFI_POWERSAVE_DEFAULT
+	bool "Use NetworkManager default"
+
+config WIFI_POWERSAVE_IGNORE
+	bool "Leave driver state unchanged"
+
+endchoice
+
 menu "IPv4"
 
 choice

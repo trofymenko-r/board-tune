@@ -283,3 +283,27 @@ def test_forget_wifi_draft_applies_after_review_confirmation(tmp_path, rootfs):
         assert session.process.returncode == 0
     assert not file.exists()
     assert list((rootfs / 'var/backups/board-tune').glob('*.json'))
+
+
+def test_wifi_power_saving_edit_uses_normal_review_apply(tmp_path, rootfs):
+    file = rootfs / 'etc/NetworkManager/system-connections/Lab.nmconnection'
+    original = '[connection]\nid=Lab\nuuid=lab\ntype=wifi\n[wifi]\nssid=Lab\n[ipv4]\nmethod=auto\n'
+    file.write_text(original)
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook('wifi')
+        session.wait('Offline target')
+        session.send('\n\njj\n')
+        session.wait('Edit Wi-Fi profile')
+        session.send('j' * 12 + '\n')
+        session.wait('Leave driver state unchanged')
+        session.send('j\nj\n')  # Disabled, then Save only
+        session.send('\x1b\x1bq')
+        session.wait('Keep changes and continue')
+        session.send('y')
+        session.wait('Apply 1 change(s)?')
+        assert file.read_text() == original
+        session.send('y\n')
+        session.wait()
+        assert session.process.returncode == 0
+    assert 'powersave=2\n' in file.read_text()
+    assert 'uuid=lab\n' in file.read_text()

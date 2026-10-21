@@ -45,6 +45,18 @@ def keyfile(root):
     return next((root / "etc/NetworkManager/system-connections").glob("board-tune-wifi-*.nmconnection"))
 
 
+@pytest.mark.parametrize('mode,number', [('DEFAULT', '0'), ('IGNORE', '1'), ('DISABLE', '2'), ('ENABLE', '3')])
+def test_batch_power_saving_readback_and_keep(wififs, source, run, target, tmp_path, mode, number):
+    config = f'CONFIG_WIFI_PASSWORD_FILE="{source}"\nCONFIG_WIFI_POWERSAVE_{mode}=y\n'
+    run(config)
+    assert f'powersave={number}\n' in keyfile(wififs).read_text()
+    conf = Configuration(Registry.load(), str(tmp_path))
+    conf.read_target(Registry.load(), target)
+    assert conf.config.enabled(f'WIFI_POWERSAVE_{mode}')
+    assert 'Nothing to change.' in run(config)
+    assert 'Nothing to change.' in run('')  # keep must preserve the existing profile value
+
+
 def test_private_wifi_profile_and_readback(wififs, source, run, target, tmp_path):
     config = f'CONFIG_WIFI_PASSWORD_FILE="{source}"\nCONFIG_WIFI_COUNTRY="UA"\nCONFIG_WIFI_HIDDEN=y\n'
     output = run(config)

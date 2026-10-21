@@ -45,6 +45,29 @@ endif
 menu "Advanced"
 
 choice
+	prompt "Energy Efficient Ethernet (EEE)"
+	default NETWORK_EEE_KEEP
+	help
+	  IEEE 802.3az wired Ethernet power saving. Requires ethtool and
+	  driver support. A persistent per-interface policy applies on next
+	  boot/device attachment and NetworkManager reconnect, never now.
+	  Removing the policy returns control to the driver/network manager.
+
+config NETWORK_EEE_KEEP
+	bool "Keep existing policy"
+
+config NETWORK_EEE_DISABLE
+	bool "Disable EEE"
+
+config NETWORK_EEE_ENABLE
+	bool "Enable EEE"
+
+config NETWORK_EEE_REMOVE
+	bool "Remove board-tune EEE policy"
+
+endchoice
+
+choice
 	prompt "Network backend"
 	default NETWORK_BACKEND_AUTO
 
