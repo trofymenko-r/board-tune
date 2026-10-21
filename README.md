@@ -227,7 +227,7 @@ using.
 
 Advanced → Energy Efficient Ethernet (EEE) sets a persistent per-interface
 IEEE 802.3az policy: keep, disable, enable, or remove board-tune's policy.
-Requires `ethtool` and driver support; new policies on live targets are probed
+The generic backend requires `ethtool` and driver support; new live policies are probed
 before any files are applied. If the driver lacks the ethtool EEE interface,
 that policy is skipped with an explanatory note, preserving existing EEE
 settings and allowing other changes to proceed. This does not establish
@@ -248,9 +248,31 @@ On a running Pi 5 with BCM54213PE, readback also recognizes both
 disabled boot policy for its 100/1000 Mb/s EEE modes. Disable then needs no
 additional ethtool service. These flags are already present in the
 [Raspberry Pi 6.12 Device Tree](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/arch/arm64/boot/dts/broadcom/bcm2712-rpi-5-b.dts).
-This is configuration readback, not measurement of the negotiated PHY state;
-Enable still requires a working control interface. No PHY registers or boot
-files are modified to import this policy.
+This is configuration readback, not measurement of the negotiated PHY state.
+Importing an existing policy does not modify files or PHY registers.
+
+For Pi 5 Model B onboard Ethernet, **Disable EEE now has a dedicated boot
+backend**, including when EEE is currently enabled and macb lacks ethtool EEE
+callbacks. It installs `overlays/board-tune-eee-off.dtbo` and a managed
+`network_eee` block in config.txt. The overlay adds both PHY restrictions
+before autonegotiation, so the new setting takes effect after reboot. The
+vendor DTB and unrelated IP, camera and UART settings are preserved. This
+backend requires neither ethtool nor dtc; the generated overlay is included
+in the normal preview and recovery backup.
+
+The selected live interface must be the verified onboard macb/BCM54213PE
+port and agree with the installed standard Pi 5 Model B DTB. Offline media
+uses eth0/end0 and validates the base DTB's Ethernet alias, PHY handle and
+symbol. Both /boot/firmware and older /boot layouts are supported; custom
+boot prefixes, alternate base DTBs, unresolved includes and foreign files
+using the managed overlay name are refused. USB NICs and other models retain
+the generic backend.
+
+Keep preserves the boot policy. Remove deletes only the managed overlay and
+block; vendor restrictions can still keep EEE disabled. Enable is not an
+inverse of this backend and still requires working driver control, with no
+managed boot-disable policy. On Pi 5, an enabled-to-disabled transition was
+verified on hardware after reboot using PHY advertisement registers.
 
 ### Wi-Fi (`WIFI`)
 

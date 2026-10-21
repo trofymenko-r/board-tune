@@ -56,7 +56,7 @@ class RaspberryPi(Platform):
         filters = set()
         starts = {f"# >>> board-tune: {name} >>>"
                   for name in ("serial_console", "hardware_i2c", "hardware_spi",
-                               "hardware_onewire", *[f"hardware_uart{i}" for i in range(6)])}
+                               "hardware_onewire", "network_eee", *[f"hardware_uart{i}" for i in range(6)])}
         for directory in BOOT_DIRS:
             data = target.read(f"{directory}/config.txt")
             if data is None:
@@ -82,6 +82,14 @@ class RaspberryPi(Platform):
                for bus in ("I2C", "SPI", "ONEWIRE")) and not uart.has_actions(ctx):
             return
         hardware.setup(ctx, self.boot_dir(ctx))
+
+    def read_ethernet_eee(self, ctx, iface):
+        from . import eee
+        return eee.read(ctx, iface)
+
+    def setup_ethernet_eee(self, ctx, iface, mode):
+        from . import eee
+        return eee.setup(ctx, iface, mode)
 
     def read_serial_console(self, ctx):
         directory = next((d for d in BOOT_DIRS if ctx.plan.exists(f"{d}/config.txt")), None)

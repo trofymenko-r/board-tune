@@ -58,9 +58,17 @@ def plan_policy(ctx, iface):
     for owned in (path, dispatcher):
         old = plan.read_text(owned)
         # Refuse to overwrite administrator files under a managed filename.
-        if plan.exists(owned) and (plan.readlink(owned) is not None or not old or
-                                  not old.startswith(MARKER if owned == path else '#!/bin/sh\n' + MARKER)):
+        if (plan.readlink(owned) is not None or plan.exists(owned) and
+                (not old or not old.startswith(MARKER if owned == path else '#!/bin/sh\n' + MARKER))):
             raise Error(f'EEE policy: {owned} is not owned by board-tune')
+    if ctx.platform.setup_ethernet_eee(ctx, iface, mode):
+        # Migrate old per-interface ethtool rules too, so none can override
+        # the requested boot policy after NetworkManager activates the port.
+        links = systemd.disable(plan, unit)
+        plan.remove(path)
+        plan.remove(dispatcher)
+        systemd.daemon_reload(plan, [path, *links])
+        return
     if mode == 'REMOVE':
         links = systemd.disable(plan, unit)
         plan.remove(path)

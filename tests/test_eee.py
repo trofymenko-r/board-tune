@@ -100,6 +100,17 @@ def test_foreign_files_are_preserved(setup, rootfs, owned, mode):
     assert path.read_text() == 'administrator setting\n'
 
 
+@pytest.mark.parametrize('owned', [1, 2])
+def test_dangling_foreign_policy_symlinks_are_preserved(setup, rootfs, owned):
+    _, make = setup
+    path = rootfs / eee.paths('end0')[owned].lstrip('/')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.symlink_to('/etc/foreign-missing-policy')
+    with pytest.raises(Error, match='not owned by board-tune'):
+        make('REMOVE')
+    assert path.is_symlink()
+
+
 def test_live_probe_never_changes_running_link(setup, target, rootfs, monkeypatch):
     _, make = setup
     (rootfs / 'sys/class/net/end0').mkdir(parents=True)
@@ -202,6 +213,10 @@ def test_escaped_device_unit_for_dashed_interface(setup, target):
 def test_bcm54213_boot_disable_is_imported_and_needs_no_ethtool(setup, rootfs, target, monkeypatch):
     conf, make = setup
     apply(make('KEEP'))
+    directory = rootfs / 'etc/NetworkManager/system-connections'
+    # A real board usually has an administrator profile, rather than the
+    # generated filename. A Keep action must not create a duplicate of it.
+    (directory / 'board-tune-end0.nmconnection').rename(directory / 'admin.nmconnection')
     phy = rootfs / 'sys/class/net/end0/phydev'
     (phy / 'of_node').mkdir(parents=True)
     (phy / 'phy_id').write_text('0x600d84a2\n')
@@ -218,6 +233,7 @@ def test_bcm54213_boot_disable_is_imported_and_needs_no_ethtool(setup, rootfs, t
     assert plan.changes() == [] and plan.commands == []
     assert any('already configured by Device Tree' in note for note in plan.notes)
     assert not target.exists(eee.paths('end0')[1])
+    assert make('KEEP').changes() == []  # Keep must not normalize the IP profile either.
 
 
 @pytest.mark.parametrize('identifier,modes,live', [

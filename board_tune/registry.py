@@ -92,6 +92,14 @@ class Platform:
     def setup_hardware(self, ctx: Context) -> None:
         raise Unsupported(f"{self.title}: hardware interfaces are not supported")
 
+    def read_ethernet_eee(self, ctx: Context, iface: str) -> str | None:
+        """Return a managed platform boot policy, independently of link state."""
+        return None
+
+    def setup_ethernet_eee(self, ctx: Context, iface: str, mode: str) -> bool:
+        """Stage a platform-specific EEE policy; False selects generic ethtool."""
+        return False
+
     def edit_kernel_cmdline(self, ctx: Context,
                             edit: Callable[[list[str]], list[str]]) -> None:
         """Stage an edit of the kernel command line tokens."""

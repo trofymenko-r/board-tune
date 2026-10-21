@@ -126,6 +126,26 @@ not found in checked startup/config files or saved history. Results and the
 MDIO addressing are recorded in docs/board-checks.md. Generic policy activation
 and EEE transitions remain untested; this check required no product-code change.
 
+2026-10-21 Pi 5 EEE disable completed: the onboard Model B port now has a
+persistent Device Tree overlay backend, independent of missing macb ethtool
+EEE callbacks. It verifies the selected port against the installed DTB,
+manages a model-filtered config.txt block, preserves vendor DTBs/IP settings,
+supports Keep/Remove and backed-up recovery, and migrates old owned ethtool
+rules without runtime activation. Unresolved boot layouts and foreign files
+are refused; USB/other interfaces retain the generic backend. This extends
+Disable, not a forced hardware Enable operation.
+
+Physical enabled-to-disabled test passed on the owner's Pi 5: with only the
+two EEE restrictions temporarily removed from a private QA copy of the base
+tree, PHY advertisement was 0x0006 and the gigabit link autonegotiated with an
+EEE-capable partner. Applying the exact generated production overlay restored
+both restrictions and advertisement 0x0000 after reboot; its marker confirmed
+the overlay actually loaded. A board-side worker and independent recovery
+timer bounded the test. Repeat apply, Keep and Remove also passed on target.
+Original boot DTB/config and network/SSH hashes/metadata were restored, QA
+units/files removed, and native EEE disable rechecked. Backup IDs and register
+observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only skip.
+
 ## Existing gaps to address alongside the stages
 
 2026-10-21 menu polish: replaced the text-only exit question with a centered

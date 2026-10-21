@@ -48,10 +48,12 @@ choice
 	prompt "Energy Efficient Ethernet (EEE)"
 	default NETWORK_EEE_KEEP
 	help
-	  IEEE 802.3az wired Ethernet power saving. Requires ethtool and
-	  driver support. A persistent per-interface policy applies on next
+	  IEEE 802.3az wired Ethernet power saving. Pi 5 Model B onboard
+	  Ethernet uses a managed Device Tree overlay to disable EEE on next
+	  boot, including when ethtool EEE control is unavailable. Other
+	  interfaces require ethtool and driver support, applying on next
 	  boot/device attachment and NetworkManager reconnect, never now.
-	  Removing the policy returns control to the driver/network manager.
+	  Remove deletes only board-tune's policy; it does not force EEE on.
 	  On BCM54213PE, running Device Tree restrictions at 100/1000 Mb/s
 	  are imported as a disabled boot policy, separately from link state.
 

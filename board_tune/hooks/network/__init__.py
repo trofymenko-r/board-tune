@@ -200,7 +200,7 @@ class WiredNetwork(Hook):
             ctx.plan.note("multiple Ethernet profiles found; the menu shows one interface/profile")
         values = min(candidates, key=lambda item: item[0])[1]
         from board_tune.eee import boot_disables_eee, policy
-        mode = policy(ctx.plan, values['NETWORK_IFACE'])
+        mode = ctx.platform.read_ethernet_eee(ctx, values['NETWORK_IFACE']) or policy(ctx.plan, values['NETWORK_IFACE'])
         if mode == 'KEEP' and boot_disables_eee(ctx.target, values['NETWORK_IFACE']):
             mode = 'DISABLE'
             ctx.plan.note(f'EEE boot policy on {values["NETWORK_IFACE"]}: disabled for '
@@ -210,10 +210,12 @@ class WiredNetwork(Hook):
 
     def plan(self, ctx: Context) -> None:
         s = settings(ctx.config)
-        from board_tune.eee import plan_policy, policy
+        from board_tune.eee import boot_disables_eee, plan_policy, policy
         plan_policy(ctx, s.iface)
         backend = self._backend(ctx)
-        if not ctx.config.enabled('NETWORK_EEE_KEEP') or policy(ctx.plan, s.iface) != 'KEEP':
+        if (not ctx.config.enabled('NETWORK_EEE_KEEP') or policy(ctx.plan, s.iface) != 'KEEP'
+                or ctx.platform.read_ethernet_eee(ctx, s.iface)
+                or boot_disables_eee(ctx.target, s.iface)):
             # A power-only edit must not create a competing IPv4 profile or
             # discard administrator settings from an existing connection.
             current = self.read(ctx)
