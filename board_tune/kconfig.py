@@ -201,7 +201,7 @@ class Configuration:
                         ui._conf_changed = True
                     return legacy
                 actions["Wi-Fi"] = open_wifi
-            with kernel_style(menuconfig, actions):
+            with kernel_style(menuconfig, actions) as presentation:
                 menuconfig.menuconfig(self.kconf)
         finally:
             if old_env is None:
@@ -210,6 +210,8 @@ class Configuration:
                 os.environ["KCONFIG_CONFIG"] = old_env
 
         # Quitting without saving changes discards them.
+        if presentation.discarded:
+            return False
         if path not in self.kconf.saved_to and getattr(menuconfig, "_conf_changed", True):
             return False
         self.kconf.load_config(path)

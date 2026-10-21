@@ -39,6 +39,7 @@ class _KernelStyle:
         self.current_menu = None
         self.menu_geometry = None
         self.actions = actions or {}
+        self.discarded = False
 
     def resize(self):
         ui = self.ui
@@ -67,7 +68,7 @@ class _KernelStyle:
         except curses.error:
             pass
         width = win.getmaxyx()[1]
-        title = f" {title} "[:max(0, width - 4)]
+        title = f" {title} "[:max(0, width - 4)] if title else ""
         ui._safe_addstr(win, 0, max(1, (width - len(title)) // 2), title)
         win.attrset(ui._style["body"])
 
@@ -188,14 +189,61 @@ class _KernelStyle:
         if not ui._conf_changed:
             return "Configuration ready."
         while True:
-            answer = ui._key_dialog(
-                "Exit", "Keep changes and continue to the preview?\n\n(Y)es  (N)o, discard  (C)ancel", "ync")
+            answer = self.exit_dialog()
             if answer in (None, "c"):
                 return None
             if answer == "n":
+                self.discarded = True
                 return "Changes discarded."
             if ui._try_save(ui._kconf.write_config, ui._conf_filename, "configuration"):
                 return "Configuration ready."
+
+    def exit_dialog(self):
+        """The compact two-button save prompt used by kernel menuconfig."""
+        ui, selected = self.ui, 0
+        while True:
+            screen = ui._stdscr
+            rows, columns = screen.getmaxyx()
+            screen.bkgd(" ", ui._style["path"])
+            screen.erase()
+            ui._safe_addstr(screen, 0, 1, "board-tune - Board configuration", curses.A_BOLD)
+            screen.noutrefresh()
+            if rows < 14 or columns < 60:
+                ui._safe_addstr(screen, 2, 1, "Resize terminal to at least 60 x 14")
+                screen.noutrefresh()
+                win = screen
+            else:
+                height, width = 6, min(60, columns - 4)
+                win = curses.newwin(height, width, (rows - height) // 2, (columns - width) // 2)
+                win.keypad(True)
+                win.bkgd(" ", ui._style["body"])
+                win.erase()
+                self.frame(win, "")
+                ui._safe_addstr(win, 1, 3, "Do you wish to save your new configuration?")
+                ui._safe_addstr(win, 2, 3, "(Press <Esc> to return to configuration.)")
+                ui._safe_hline(win, 3, 1, curses.ACS_HLINE, width - 2)
+                labels = ("< Yes >", "< No >")
+                left = (width - sum(map(len, labels)) - 6) // 2
+                for index, label in enumerate(labels):
+                    ui._safe_addstr(win, 4, left, label,
+                                    ui._style["selection" if index == selected else "body"])
+                    left += len(label) + 6
+                win.noutrefresh()
+            curses.doupdate()
+            key = ui._getch_compat(win)
+            if key in ("\x1b", "c", "C"):
+                return None
+            if key == curses.KEY_RESIZE:
+                ui._resize_main()
+                continue
+            if rows < 14 or columns < 60:
+                continue
+            if key in (curses.KEY_LEFT, curses.KEY_RIGHT, "\t", curses.KEY_BTAB):
+                selected = 1 - selected
+            elif key in ("\n", " ", curses.KEY_ENTER):
+                return ("y", "n")[selected]
+            elif key in ("y", "Y", "n", "N"):
+                return key.lower()
 
     def key(self, win):
         ui = self.ui
@@ -262,7 +310,7 @@ def kernel_style(ui, actions=None):
     try:
         for name, replacement in replacements.items():
             setattr(ui, name, replacement)
-        yield
+        yield adapter
     finally:
         for name, original in originals.items():
             setattr(ui, name, original)

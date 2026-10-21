@@ -96,6 +96,17 @@ remains a hardware check. See docs/board-checks.md.
 
 ## Existing gaps to address alongside the stages
 
+2026-10-21 menu polish: replaced the text-only exit question with a centered
+six-row kernel-style Yes/No dialog on the blue background. Yes defaults to
+review, No discards the pending session, Esc returns to editing; arrows,
+Tab/Shift-Tab, Enter/Space and Y/N are supported, including terminal resizing.
+Explicit No now also discards after an earlier in-session Save, rather than
+continuing with that stale snapshot and potentially applying Wi-Fi drafts.
+Unchanged exits still skip the prompt. Terminal tests cover navigation,
+resize, cancel/default selection, save/discard and Wi-Fi draft review/apply.
+Full automated suite: 360 passed, 1 root-only test skipped. No board settings
+were changed for this UI update.
+
 - Explicit distinction between leaving a feature unchanged and disabling it.
 - More complete readback: firmware includes and SSH Match rules.
 - Report ambiguous/unsupported settings instead of presenting guesses as facts.

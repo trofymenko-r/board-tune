@@ -93,7 +93,7 @@ def test_hardware_choices_can_be_edited_and_saved(tmp_path):
         session.wait("Enable")
         session.send("j\n")
         session.send("q")
-        session.wait("Keep changes and continue")
+        session.wait("Do you wish to save your new configuration?")
         session.send("y")
         session.wait()
         assert session.process.returncode == 0
@@ -132,7 +132,7 @@ def test_onewire_gpio_can_be_edited_and_saved(tmp_path):
         session.wait("1-Wire GPIO (BCM) (int)")
         session.send("\x1517\n")
         session.send("q")
-        session.wait("Keep changes and continue")
+        session.wait("Do you wish to save your new configuration?")
         session.send("y")
         session.wait()
         assert session.process.returncode == 0
@@ -152,7 +152,7 @@ def test_additional_uart_and_flow_control_can_be_saved(tmp_path):
         session.send("j\n")
         session.wait("UART2 CTS/RTS")
         session.send("j q")
-        session.wait("Keep changes and continue")
+        session.wait("Do you wish to save your new configuration?")
         session.send("y")
         session.wait()
         text = destination.read_text()
@@ -169,7 +169,7 @@ def test_terminal_edit_save_and_resize(tmp_path):
         session.send("\x152222\n")
         session.resize(24, 80)
         session.send("q")
-        session.wait("Keep changes and continue")
+        session.wait("Do you wish to save your new configuration?")
         session.send("y")
         session.wait()
         assert session.process.returncode == 0
@@ -181,8 +181,57 @@ def test_terminal_discard_does_not_export(tmp_path):
         session.enter_hook("network")
         session.wait("Configure Ethernet")
         session.send(" q")
-        session.wait("Keep changes and continue")
+        session.wait("Do you wish to save your new configuration?")
         session.send("n")
+        session.wait()
+        assert session.process.returncode == 1
+        assert not destination.exists()
+
+
+@pytest.mark.parametrize('key', ['\t', '\x1bOC', '\x1bOD', '\x1b[Z'])
+def test_exit_dialog_buttons_and_resize(tmp_path, key):
+    with terminal(tmp_path) as (session, destination):
+        session.enter_hook('network')
+        session.send(' q')
+        session.wait('Do you wish to save your new configuration?')
+        session.wait('< Yes >')
+        session.wait('< No >')
+        session.resize(8, 30)
+        session.send('?')  # Wake a read if SIGWINCH arrived before get_wch().
+        session.wait('Resize terminal')
+        session.output = b''
+        session.resize(24, 80)
+        session.send('?')
+        session.wait('< Yes >')
+        session.send(key + '\n')  # No, selected with arrows/Tab/Shift-Tab
+        session.wait()
+        assert session.process.returncode == 1
+        assert not destination.exists()
+
+
+@pytest.mark.parametrize('cancel', ['\x1b', 'c'])
+def test_exit_cancel_returns_to_edits_and_enter_defaults_to_yes(tmp_path, cancel):
+    with terminal(tmp_path) as (session, destination):
+        session.enter_hook('network')
+        session.send(' q')
+        session.wait('Do you wish to save your new configuration?')
+        session.output = b''
+        session.send('\t' + cancel)  # Leave No selected, then cancel the exit.
+        session.wait('Configure Ethernet')
+        session.send('q\n')  # A new dialog defaults to Yes.
+        session.wait()
+        assert session.process.returncode == 0
+        assert 'CONFIG_NETWORK=y' in destination.read_text()
+
+
+def test_exit_no_after_earlier_save_does_not_export(tmp_path):
+    with terminal(tmp_path, 'CONFIG_SSH=y\nCONFIG_SSH_PORT=2200\n') as (session, destination):
+        session.enter_hook('ssh')
+        session.send('jj\n\x152222\ns')
+        session.wait('Settings saved for this session')
+        session.send('\n\n\x153333\nq')
+        session.wait('Do you wish to save your new configuration?')
+        session.send('n')
         session.wait()
         assert session.process.returncode == 1
         assert not destination.exists()
@@ -242,7 +291,7 @@ def test_forget_wifi_draft_can_be_discarded(tmp_path, rootfs):
         session.send('\n\njjj\n')
         session.wait('Remove saved profile Lab?')
         session.send('j\n\x1b\x1bq')
-        session.wait('Keep changes and continue')
+        session.wait('Do you wish to save your new configuration?')
         session.send('n')
         session.wait()
         assert session.process.returncode == 1
@@ -274,7 +323,7 @@ def test_forget_wifi_draft_applies_after_review_confirmation(tmp_path, rootfs):
         session.send('\n\njjj\n')
         session.wait('Remove saved profile Lab?')
         session.send('j\n\x1b\x1bq')
-        session.wait('Keep changes and continue')
+        session.wait('Do you wish to save your new configuration?')
         session.send('y')
         session.wait('Apply 1 change(s)?')
         assert file.exists()
@@ -298,7 +347,7 @@ def test_wifi_power_saving_edit_uses_normal_review_apply(tmp_path, rootfs):
         session.wait('Leave driver state unchanged')
         session.send('j\nj\n')  # Disabled, then Save only
         session.send('\x1b\x1bq')
-        session.wait('Keep changes and continue')
+        session.wait('Do you wish to save your new configuration?')
         session.send('y')
         session.wait('Apply 1 change(s)?')
         assert file.read_text() == original

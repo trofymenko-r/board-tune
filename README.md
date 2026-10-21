@@ -69,7 +69,11 @@ submenus, and public keys have their own SSH submenu.
 Use Up/Down to select an item, Enter to open or edit it, Space (or Y/N) to
 change a checkbox, and Esc to return. Tab or Left/Right selects the bottom
 buttons. Help shows a short explanation of the selected option. Save keeps
-settings for the current session; Exit continues to the change preview.
+settings for the current session. Exiting with unsaved edits opens a compact
+kernel-style Yes/No dialog: Yes continues to the change preview, No exits
+without applying/exporting pending changes, and Esc returns to editing.
+Use Tab/Left/Right to choose a button and Enter/Space to activate it; Y/N
+also answer directly. With no unsaved edits, Exit continues without a prompt.
 Load imports a profile without changing that file. To export a profile,
 use `--save FILE`. Dialogs resize with the terminal (minimum 60 columns by
 14 rows). `MENUCONFIG_STYLE` can override the default colors.
