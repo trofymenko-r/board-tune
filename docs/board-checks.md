@@ -411,3 +411,33 @@ accurate unavailable-control messaging for Enable and no hardware capability
 claim. Network/SSH/boot hashes and metadata, plus active Wi-Fi UUID, matched
 the initial snapshot. No MDIO/PHY writes, link renegotiation or boot-file
 changes were performed. Direct PHY-state verification remains pending.
+
+### Direct PHY EEE verification (2026-10-21)
+
+After the owner authorized further inspection, read the BCM54213PE using
+socket ioctl SIOCGMIIREG (0x8948), with PHY address 1. Clause 22 registers
+2/3 returned the expected PHY ID 0x600d84a2. Clause 45 requests used
+MDIO_PHY_ID_C45 | (prtad << 5) | devad; no SIOCSMIIREG request or PHY
+configuration write was used.
+
+| Register | Device/register | Value | Interpretation |
+|---|---|---|---|
+| EEE capability | PCS 3 / 0x14 | 0x0006 | 100TX and 1000T supported |
+| Local EEE advertisement | AN 7 / 0x3c | 0x0000 | Neither mode advertised |
+| Partner EEE advertisement | AN 7 / 0x3d | 0x0006 | Partner advertises both modes |
+
+Repeated reads returned the same values with the Ethernet link still up.
+EEE is therefore not negotiated on this link, despite the hardware supporting
+it. The existing Device Tree restrictions agree with the local advertisement.
+PHY LPI count stayed at 4 between observations; this historical counter alone
+is not a current enable/disable indicator. No link restart, renegotiation,
+PHY setting, kernel parameter or configuration file was changed.
+
+Searched relevant startup files (systemd, NM dispatcher/keyfiles, udev,
+modprobe, rc.local, network hooks, cron and local scripts), boot configuration
+and saved mipi/root bash/zsh history for EEE/PHY commands. No previous disable
+command or custom persistent EEE rule was found. This cannot reconstruct
+deleted/unflushed history or changes made on a prior installation. The current
+base DTB already carries both restrictions. The earlier pending direct PHY
+check is now complete for this running link; generic EEE service activation
+and hardware enable/disable transitions remain untested.

@@ -117,6 +117,15 @@ Real SSH PTY checks cover unchanged, Disable and Enable exits in dry-run,
 preserving configuration/metadata and active Wi-Fi. No PHY registers or boot
 files were changed. Full suite: 370 passed, 1 root-only skip.
 
+2026-10-21 owner-authorized direct PHY inspection: read-only SIOCGMIIREG
+confirmed BCM54213PE capability 0x0006, local EEE advertisement 0x0000 and
+partner advertisement 0x0006, repeated with the link up. EEE is not currently
+negotiated; the existing DT boot restrictions agree with hardware readback.
+No writes or network restart were performed. The earlier disable command was
+not found in checked startup/config files or saved history. Results and the
+MDIO addressing are recorded in docs/board-checks.md. Generic policy activation
+and EEE transitions remain untested; this check required no product-code change.
+
 ## Existing gaps to address alongside the stages
 
 2026-10-21 menu polish: replaced the text-only exit question with a centered
