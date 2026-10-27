@@ -405,6 +405,24 @@ logins; keyboard changes are deferred until reboot/console reconfiguration.
 Hostname and NTP changes are activated on live targets. The initial NTP
 backend is systemd-timesyncd only; chrony and ntpd are left alone.
 
+`System -> Shell and terminal -> Command aliases` offers Keep / Enable /
+Remove for the system-wide Bash default `ll='ls -la'`. Enable adds an owned
+block to the existing `/etc/bash.bashrc` on Debian, Ubuntu and Raspberry Pi OS.
+It applies to new interactive Bash sessions for existing and future users,
+including root. Existing commands/functions/aliases named `ll` are preserved;
+personal aliases loaded afterwards take precedence. Noninteractive shells
+and other shell families are unaffected. Remove deletes only the unchanged
+board-tune block, preserving the rest of the file and its permissions. An
+edited or malformed managed block requires manual resolution or Keep.
+Readback reports the managed default, rather than evaluating personal shell
+startup files. No reboot is needed; open a new shell after applying/removing.
+
+```config
+CONFIG_SYSTEM=y
+CONFIG_SYSTEM_ALIAS_LL_ENABLE=y
+# To remove the managed default, select CONFIG_SYSTEM_ALIAS_LL_REMOVE=y instead.
+```
+
 ### Hardware interfaces (`HARDWARE`)
 
 On Raspberry Pi 4/5, the primary header I2C bus (GPIO 2/3) and SPI0

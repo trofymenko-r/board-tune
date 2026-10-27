@@ -1,8 +1,8 @@
 config SYSTEM
 	bool "Configure system settings"
 	help
-	  Set identity, localisation and time synchronisation. Empty fields
-	  keep the corresponding setting. Locale and keyboard changes take
+	  Set identity, localisation, time synchronisation and shell conveniences.
+	  Empty fields keep the corresponding setting. Locale and keyboard changes take
 	  effect for subsequent logins or after a reboot.
 
 if SYSTEM
@@ -60,5 +60,34 @@ config SYSTEM_NTP_SERVERS
 	depends on SYSTEM_NTP_ENABLE
 	help
 	  Space-separated DNS names or IPv4/IPv6 addresses.
+
+menu "Shell and terminal"
+
+comment "Command aliases"
+
+choice
+	prompt "ll = ls -la (Bash)"
+	default SYSTEM_ALIAS_LL_KEEP
+	help
+	  System-wide default for new interactive Bash sessions on Debian,
+	  Ubuntu and Raspberry Pi OS. Personal shell configuration takes
+	  precedence. Existing ll commands, functions and aliases are preserved.
+
+config SYSTEM_ALIAS_LL_KEEP
+	bool "Keep current"
+
+config SYSTEM_ALIAS_LL_ENABLE
+	bool "Enable default ll alias"
+
+config SYSTEM_ALIAS_LL_REMOVE
+	bool "Remove board-tune default ll alias"
+	help
+	  Remove only the block managed by board-tune. Personal and other
+	  administrator-defined aliases are left alone. Existing shells keep
+	  their aliases until a new session is opened.
+
+endchoice
+
+endmenu
 
 endif

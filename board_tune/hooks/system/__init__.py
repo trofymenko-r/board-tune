@@ -9,6 +9,7 @@ import shlex
 from board_tune import systemd
 from board_tune.errors import Error
 from board_tune.registry import Hook
+from . import aliases as shell_aliases
 
 NTP_UNIT = "systemd-timesyncd.service"
 NTP_DROPIN = "/etc/systemd/timesyncd.conf.d/90-board-tune.conf"
@@ -91,6 +92,7 @@ class System(Hook):
                 match = re.search(r"(?m)^NTP=(.*)$", text)
                 if match:
                     values["SYSTEM_NTP_SERVERS"] = match.group(1)
+        values.update(shell_aliases.read(ctx.plan))
         return {"SYSTEM": "y", **values} if values else {"SYSTEM": "n"}
 
     def plan(self, ctx):
@@ -136,6 +138,7 @@ class System(Hook):
             if plan.changed(path):
                 plan.note("keyboard settings take effect after a reboot or console reconfiguration")
         self._ntp(ctx)
+        shell_aliases.configure(ctx)
 
     def _locale(self, ctx):
         cfg, plan = ctx.config, ctx.plan

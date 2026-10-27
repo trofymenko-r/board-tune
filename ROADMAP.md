@@ -230,6 +230,26 @@ or removing its supplementary groups/managed sudo grant during that same
 session. Unprivileged extracted-directory workflows report that ownership
 must be applied as root before boot.
 
+## Shell and terminal conveniences (2026-10-27)
+
+Added `System -> Shell and terminal` with a `Command aliases` section.
+This menu is also the intended home for future prompt, history and completion settings.
+The first option is Keep / Enable / Remove for `ll='ls -la'` in new interactive
+Bash sessions. The backend owns only a marked block in the existing Debian-style
+`/etc/bash.bashrc`, preserving site definitions, personal aliases, unrelated
+bytes and file metadata. Keep is the default for unmanaged state; readback
+imports the managed default. Modified/malformed blocks require manual resolution
+or Keep. This does not install Bash, edit home directories or require a reboot.
+
+Local regression checks cover argument expansion in real Bash, noninteractive
+and other-shell exclusion, personal/site precedence, readback, idempotency,
+removal, metadata preservation and backed-up recovery. On the owner's Pi 5 at
+`mipi@192.168.0.11`, root and mipi login/non-login interactive Bash sessions
+confirmed the alias; Enable/readback/repeat/Keep/Remove passed. Original
+`/etc/bash.bashrc` bytes and metadata were restored and verified using snapshot
+`20261027T203016Z-3c0f35ff47d0`. No reboot or network changes were needed.
+Full regression suite: 408 passed, 1 root-only test skipped.
+
 ## Stage 3 verification and next action
 
 Wi-Fi keyfile tests cover WPA2/WPA3/open security, SSID escaping, private
