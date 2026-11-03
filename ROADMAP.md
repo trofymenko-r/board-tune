@@ -161,12 +161,31 @@ were changed for this UI update.
 
 - Explicit distinction between leaving a feature unchanged and disabling it.
 - More complete readback: firmware includes and SSH Match rules.
+- Unbooted Raspberry Pi OS Trixie media: detect pending NoCloud settings
+  from Imager's boot-partition `user-data` / `network-config` / `meta-data`.
+  Readback currently shows installed rootfs settings, not pending first-boot
+  hostname, timezone, SSH, users or network settings. Add a clear distinction
+  and define how explicit edits interact with cloud-init before supporting
+  these drafts; never silently infer a static address prefix.
 - Report ambiguous/unsupported settings instead of presenting guesses as facts.
 - Validate target configurations before activation and preserve idempotency.
 - Keep secrets out of displayed diffs and ordinary profile values.
 - Wired network changes currently wait for reboot. Wi-Fi supports explicit
   checkpointed live actions; extending live activation to Ethernet needs
   the same connectivity-preserving design.
+
+2026-11-03 card audit: inspected the owner's MMC rootfs read-only with journal
+replay disabled (`ro,noload`), then unmounted only the rootfs mounted for this
+audit. The existing desktop boot mount was left intact. Boot/fstab PARTUUIDs
+match the device, Pi 4/5 kernels/initramfs/DTBs and required services exist.
+No board-tune backup, managed boot block, Ethernet profile or ll block exists.
+Installed rootfs settings differ from valid Imager NoCloud first-boot drafts:
+Ethernet DHCP, one Wi-Fi AP, SSH enablement, custom hostname and Europe/Kyiv.
+There are no cloud-init execution records. The reported bare static IPv4 address
+is absent from readback and was rejected before apply, so the requested session
+changes were not written. Filesystem health and actual boot/connectivity were
+not established by this configuration audit; first-boot cloud-init behavior
+remains a board check. No credentials were printed and no card files changed.
 
 ## Physical-board verification pending
 
