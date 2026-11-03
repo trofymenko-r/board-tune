@@ -16,8 +16,9 @@ Copyright (C) 2026 Ruslan Trofymenko. Licensed under GNU GPL version 3 only
 
 ## Installation
 
-Debian/Ubuntu packages and the signed GitHub Pages APT repository are described
-in [Distribution](docs/distribution.md), including local builds and release setup.
+Build a tested Debian package with `scripts/build-deb`; packages appear in
+`dist/latest-build/`. Signing, verification and future publication are short
+script commands documented in [Distribution](docs/distribution.md).
 Packages are prepared locally; public publication is deferred.
 
 For development:

@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+: "${RUNNER_TEMP:?}" "${GITHUB_ENV:?}" "${APT_SIGNING_KEY:?}" "${APT_SIGNING_PASSPHRASE:?}"
+test -n "$APT_SIGNING_KEY"
+test -n "$APT_SIGNING_PASSPHRASE"
+export GNUPGHOME="$RUNNER_TEMP/board-tune-gnupg"
+mkdir -m 700 "$GNUPGHOME"
+printf '%s' "$APT_SIGNING_KEY" | gpg --batch --import
+printf '%s' "$APT_SIGNING_PASSPHRASE" >"$GNUPGHOME/passphrase"
+chmod 600 "$GNUPGHOME/passphrase"
+fingerprint=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
+test -n "$fingerprint"
+expected=$(gpg --batch --with-colons --show-keys packaging/board-tune-archive-key.asc | awk -F: '$1 == "fpr" {print $10; exit}')
+test "$fingerprint" = "$expected"
+printf 'GNUPGHOME=%s\nAPT_SIGNING_KEY_ID=%s\n' "$GNUPGHOME" "$fingerprint" >>"$GITHUB_ENV"

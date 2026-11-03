@@ -157,6 +157,19 @@ Wrap error messages into the dialog body so the reason is not truncated.
 Verified 54 Wi-Fi manager and real-terminal menu tests, including metadata
 symlinks, device/broken links, regular profile aliases and error wrapping.
 The owner confirmed the preceding sudo fix opens the menu on pi@192.168.0.10.
+The owner also confirmed the Wi-Fi menu opens after the metadata correction.
+
+Distribution scripts (2026-11-03): replace manual Docker/GPG/GitHub sequences
+with build-deb, prepare-apt, check-apt, bump-version, publish-release and
+install-apt entry points under scripts/. Build artifacts are retained between
+local runs, and publication/installation have side-effect-free dry-run modes.
+The release workflow delegates build and GitHub setup steps to scripts.
+Publication remains deferred; only local and simulated operations are tested.
+Verified the full script chain (build, sign, APT install/source retrieval and
+tamper rejection) locally. The Bookworm package build ran 443 tests with 3 skips;
+13 focused orchestration tests cover dry-run isolation, version updates,
+retained artifacts, tag conflicts and secret transfer via stdin. Lintian has
+no errors. No repository, Pages deployment or host APT setup was performed.
 
 SSH sudo authentication (2026-11-03): support ordinary password-protected sudo
 with one terminal prompt before the menu and connection-local credentials.

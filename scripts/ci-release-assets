@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+: "${GITHUB_REF_NAME:?}" "${GITHUB_REPOSITORY:?}" "${APT_SIGNING_KEY_ID:?}"
+gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+  gh release create "$GITHUB_REF_NAME" --verify-tag --title "board-tune $GITHUB_REF_NAME" --generate-notes
+for asset in dist/debian/*.deb dist/debian/*.dsc dist/debian/*.tar.xz; do
+  existing=$(mktemp -d)
+  name=$(basename "$asset")
+  if gh release download "$GITHUB_REF_NAME" --pattern "$name" --dir "$existing"; then
+    cmp "$asset" "$existing/$name"
+  else
+    gh release upload "$GITHUB_REF_NAME" "$asset"
+  fi
+  rm -rf "$existing"
+done
+notes=$(mktemp)
+gh release view "$GITHUB_REF_NAME" --json body --jq .body >"$notes"
+if ! grep -Fq "$APT_SIGNING_KEY_ID" "$notes"; then
+  printf '\nAPT archive signing fingerprint: `%s`\n' "$APT_SIGNING_KEY_ID" >>"$notes"
+  gh release edit "$GITHUB_REF_NAME" --notes-file "$notes"
+fi
+rm "$notes"
+mkdir -p dist/archive
+gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+  --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' |
+while IFS= read -r tag; do
+  destination=$(mktemp -d "$PWD/dist/archive/release-XXXXXX")
+  gh release download "$tag" --dir "$destination" \
+    --pattern '*.deb' --pattern '*.dsc' --pattern '*.tar.xz'
+done

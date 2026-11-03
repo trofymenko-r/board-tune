@@ -24,18 +24,10 @@ jobs:
           version=$(dpkg-parsechangelog -ldebian/changelog -SVersion)
           test "$GITHUB_REF_TYPE" = tag
           test "$GITHUB_REF_NAME" = "v${version%-*}"
-      - name: Build in Debian Bookworm
+      - name: Build and check Debian packages
         run: |
-          docker build --build-arg BUILDER_UID="$(id -u)" \
-            -t board-tune-packaging -f packaging/Containerfile packaging
-          mkdir -p dist/debian
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -v "$PWD:/src:ro" -v "$PWD/dist/debian:/out" \
-            board-tune-packaging python3 /src/tools/build_deb.py --output /out
-      - name: Check package metadata
-        run: |
-          docker run --rm -v "$PWD/dist/debian:/packages:ro" \
-            board-tune-packaging sh -c 'lintian /packages/*.changes'
+          scripts/build-deb
+          cp -aL dist/latest-build dist/debian
       - uses: actions/upload-artifact@v4
         with:
           name: debian-release
@@ -63,50 +55,11 @@ jobs:
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
           APT_SIGNING_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
-        run: |
-          test -n "$APT_SIGNING_KEY"
-          test -n "$APT_SIGNING_PASSPHRASE"
-          export GNUPGHOME="$RUNNER_TEMP/board-tune-gnupg"
-          mkdir -m 700 "$GNUPGHOME"
-          printf '%s' "$APT_SIGNING_KEY" | gpg --batch --import
-          printf '%s' "$APT_SIGNING_PASSPHRASE" >"$GNUPGHOME/passphrase"
-          chmod 600 "$GNUPGHOME/passphrase"
-          fingerprint=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
-          test -n "$fingerprint"
-          expected=$(gpg --batch --with-colons --show-keys packaging/board-tune-archive-key.asc | awk -F: '$1 == "fpr" {print $10; exit}')
-          test "$fingerprint" = "$expected"
-          printf 'GNUPGHOME=%s\nAPT_SIGNING_KEY_ID=%s\n' "$GNUPGHOME" "$fingerprint" >>"$GITHUB_ENV"
+        run: scripts/ci-signing-key
       - name: Upload release and collect published versions
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --verify-tag --title "board-tune $GITHUB_REF_NAME" --generate-notes
-          for asset in dist/debian/*.deb dist/debian/*.dsc dist/debian/*.tar.xz; do
-            existing=$(mktemp -d)
-            name=$(basename "$asset")
-            if gh release download "$GITHUB_REF_NAME" --pattern "$name" --dir "$existing"; then
-              cmp "$asset" "$existing/$name"
-            else
-              gh release upload "$GITHUB_REF_NAME" "$asset"
-            fi
-            rm -rf "$existing"
-          done
-          notes=$(mktemp)
-          gh release view "$GITHUB_REF_NAME" --json body --jq .body >"$notes"
-          if ! grep -Fq "$APT_SIGNING_KEY_ID" "$notes"; then
-            printf '\nAPT archive signing fingerprint: `%s`\n' "$APT_SIGNING_KEY_ID" >>"$notes"
-            gh release edit "$GITHUB_REF_NAME" --notes-file "$notes"
-          fi
-          rm "$notes"
-          mkdir -p dist/archive
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
-            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' |
-          while IFS= read -r tag; do
-            destination=$(mktemp -d "$PWD/dist/archive/release-XXXXXX")
-            gh release download "$tag" --dir "$destination" \
-              --pattern '*.deb' --pattern '*.dsc' --pattern '*.tar.xz'
-          done
+        run: scripts/ci-release-assets
       - name: Build signed repository
         run: |
           python3 tools/build_apt_repo.py --packages dist/archive --output dist/apt \
