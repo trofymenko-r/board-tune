@@ -189,6 +189,15 @@ were changed for this UI update.
 
 ## Stage 0 verification
 
+2026-11-03 removable-media detection fix: explicitly request `lsblk --tree`
+when selecting PATH without NAME. Otherwise JSON lists the disk and partitions
+as peers and the reader incorrectly reports "no partitions found". Regression
+coverage checks the lsblk JSON hierarchy contract for MMC, USB and loop devices.
+Read-only inspection of the owner's `/dev/mmcblk0` reproduced the flat output;
+the corrected reader finds `/dev/mmcblk0p1` (vfat, bootfs) and
+`/dev/mmcblk0p2` (ext4, rootfs). The card was not mounted or written for this check.
+Full regression suite: 411 passed, 1 root-only loop-device test skipped.
+
 Private snapshots, symlink destination recovery, permissions, automatic
 file rollback after injected failures, restore preview, and reversible
 manual restoration pass tests. File recovery does not undo runtime effects

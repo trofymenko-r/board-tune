@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -5,7 +6,7 @@ import subprocess
 import pytest
 
 from board_tune.target import BlockTarget
-from board_tune.target.block import _match_fstab_spec
+from board_tune.target.block import _lsblk, _match_fstab_spec
 
 from .conftest import CONFIG_TXT
 
@@ -15,6 +16,28 @@ PARTS = [
     {"path": "/dev/sdb2", "fstype": "ext4", "label": "rootfs",
      "uuid": "56f80fa2-e005-4cca-86e6-19da1069914d", "partuuid": "4e639091-02"},
 ]
+
+
+@pytest.mark.parametrize("device,kind", [
+    ("/dev/mmcblk0", "disk"), ("/dev/sdb", "disk"), ("/dev/loop0", "loop"),
+])
+def test_lsblk_preserves_partition_tree_without_name_column(monkeypatch, device, kind):
+    suffix = "p" if device[-1].isdigit() else ""
+    parts = [dict(part, path=f"{device}{suffix}{index}", type="part")
+             for index, part in enumerate(PARTS, 1)]
+    disk = {"path": device, "type": kind}
+
+    def lsblk(argv, **kwargs):
+        assert argv[0] == "lsblk" and argv[-1] == device
+        # Model lsblk's documented JSON contract: PATH alone yields a flat list.
+        tree = "--tree" in argv or "NAME" in argv[argv.index("--output") + 1].split(",")
+        devices = [dict(disk, children=parts)] if tree else [disk, *parts]
+        return subprocess.CompletedProcess(argv, 0, json.dumps({"blockdevices": devices}), "")
+
+    monkeypatch.setattr(subprocess, "run", lsblk)
+    result = _lsblk(device)
+    assert result["path"] == device
+    assert result["children"] == parts
 
 
 @pytest.mark.parametrize("spec, path", [

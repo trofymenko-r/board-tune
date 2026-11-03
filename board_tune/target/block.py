@@ -39,7 +39,9 @@ def _size(nbytes) -> str:
 
 
 def _lsblk(dev: str) -> dict:
-    proc = subprocess.run(["lsblk", "--json", "--bytes", "--output",
+    # JSON children are emitted only with NAME in the columns or --tree.
+    # We select PATH instead, so explicitly request the disk/partition tree.
+    proc = subprocess.run(["lsblk", "--json", "--tree", "--bytes", "--output",
                            _LSBLK_COLUMNS, dev], capture_output=True, text=True)
     if proc.returncode != 0:
         raise Error(f"{dev}: {proc.stderr.strip()}")
