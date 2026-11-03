@@ -148,6 +148,16 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Debian test workspace correction (2026-11-04): the developer-environment
+tests initially passed only from a checkout. The pybuild workspace omitted
+setup.env because it was missing from debian/pybuild.testfiles, causing three
+test failures and two fixture errors during package builds. Add the sourced
+file to the existing test-file manifest without installing it in the binary
+package. All five setup tests pass in Debian 12. The full build-deb command
+passed with 457 tests and 3 skips, producing binary and source artifacts in
+dist/latest-build/. Lintian reports no errors and only the existing
+initial-upload-closes-no-bugs warning. Publication remains deferred.
+
 Development environment (2026-11-04): source `. ./setup.env` in Bash to
 create/install the local virtualenv on first use, activate it and expose
 maintainer scripts by name. Repeated sourcing reuses the installation and
