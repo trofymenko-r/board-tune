@@ -148,6 +148,18 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Development environment (2026-11-04): source `. ./setup.env` in Bash to
+create/install the local virtualenv on first use, activate it and expose
+maintainer scripts by name. Repeated sourcing reuses the installation and
+does not duplicate PATH entries. Resolve the checkout from the sourced file,
+support paths with spaces, and leave the caller's environment unchanged if
+bootstrap fails. Update installation, testing and distribution instructions;
+keep the explicit script path with sudo and direct paths available for CI.
+Verified Bash syntax, ShellCheck and 18 environment/distribution tests.
+Fresh-checkout bootstrap, repeated activation, CLI/help and publication/install
+dry runs passed with normal pip and with cached wheels in offline mode.
+No publication, board changes or host APT configuration was performed.
+
 Wi-Fi property columns (2026-11-03): align labels and values in the active
 status, profile editor/details and live-change confirmation dialogs. Parse
 nmcli status into named properties, preserving escaped connection names and

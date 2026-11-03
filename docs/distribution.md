@@ -1,21 +1,28 @@
 # Packages and releases
 
 **Publication is deferred.** Packages and the APT archive are local. Run commands
-from the project root. Local builds need Python 3 and Docker; Debian tools run
-inside the container.
+from the project root in Bash. Local builds need Python 3 with venv/pip support
+and Docker; Debian tools run inside the container. Prepare the current shell:
+
+```sh
+. ./setup.env
+```
+
+The first run creates the virtualenv and installs the project. Subsequent runs
+activate it and expose the scripts by name without reinstalling dependencies.
 
 ## Build and check locally
 
 ```sh
-scripts/build-deb
-scripts/prepare-apt
-scripts/check-apt
+build-deb
+prepare-apt
+check-apt
 ```
 
 `build-deb` prepares Docker, runs tests, builds binary/source packages and checks
 them with lintian. Results are in `dist/latest-build/`; earlier builds are kept.
 Detailed output is in `dist/logs/`. The default source is committed HEAD; use
-`scripts/build-deb --ref REF` for another commit or staged tree ID. Untracked
+`build-deb --ref REF` for another commit or staged tree ID. Untracked
 files, credentials and virtualenvs are excluded.
 
 `prepare-apt` signs packages into `dist/latest-apt/`, using the private maintainer
@@ -30,7 +37,7 @@ Each script has `--help` for optional paths and distributions.
 ## Prepare a future version
 
 ```sh
-scripts/bump-version 0.1.1
+bump-version 0.1.1
 ```
 
 This updates Python metadata, the manual and Debian changelog together. Review
@@ -40,9 +47,9 @@ identifies an earlier preparation commit; scripts never move release tags.
 ## Publish later, when explicitly requested
 
 ```sh
-scripts/publish-release v0.1.1 --dry-run
+publish-release v0.1.1 --dry-run
 # Only when ready:
-scripts/publish-release v0.1.1
+publish-release v0.1.1
 ```
 
 The actual command requires GitHub CLI authenticated as `trofymenko-r` with
@@ -63,9 +70,11 @@ The public key is `packaging/board-tune-archive-key.asc`, fingerprint
 ## Install from APT after publication
 
 ```sh
-scripts/install-apt --dry-run
-sudo scripts/install-apt
+install-apt --dry-run
+sudo ./scripts/install-apt
 ```
+
+Use the explicit path with `sudo`, which normally resets PATH.
 
 This adds the committed key with a repository-specific Signed-By entry and
 installs board-tune. Different existing key/source files are not overwritten.
