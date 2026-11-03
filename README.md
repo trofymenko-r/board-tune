@@ -18,7 +18,7 @@ Copyright (C) 2026 Ruslan Trofymenko. Licensed under GNU GPL version 3 only
 
 Debian/Ubuntu packages and the signed GitHub Pages APT repository are described
 in [Distribution](docs/distribution.md), including local builds and release setup.
-The initial public release is pending repository setup.
+Packages are prepared locally; public publication is deferred.
 
 For development:
 

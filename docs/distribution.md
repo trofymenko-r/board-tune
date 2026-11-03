@@ -1,12 +1,15 @@
 # Debian packages and APT distribution
 
 board-tune is licensed under **GPL-3.0-only**. See [LICENSE](../LICENSE).
-The initial public release requires the GitHub setup below; the repository URL
-becomes available after the first successful release workflow.
+Public publication is deferred at the owner's request (2026-11-03). Packages
+and the signed archive have been prepared and tested locally. Do not push
+release tags or run the deployment workflow until publication is requested.
+The repository URL becomes available after the first successful deployment.
 
 ## Install through APT
 
-The archive is hosted at `https://trofymenko-r.github.io/board-tune/`.
+The planned archive URL is `https://trofymenko-r.github.io/board-tune/`;
+it has not been published yet. The commands below are for the future release.
 Its `stable` suite tracks board-tune releases, not a particular Debian release.
 The initial signing fingerprint is
 `B8E559579253CC9310CDB77279B88B4171E11938`; the public key is also tracked in

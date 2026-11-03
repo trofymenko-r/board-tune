@@ -164,6 +164,10 @@ could not start because this host has no ARM emulator; do not count it as
 verified. A dedicated protected local signing key exists outside Git, with
 only its public key tracked. Do not announce the public URL as live until
 GitHub authorization, Pages deployment and a live-URL install succeed.
+The owner explicitly deferred publication on 2026-11-03. Keep the prepared
+packages and release tooling local; do not push release tags or deploy Pages
+until the owner explicitly resumes publication. The pending CLI device-login
+process was cancelled.
 
 2026-10-21 menu polish: replaced the text-only exit question with a centered
 six-row kernel-style Yes/No dialog on the blue background. Yes defaults to
