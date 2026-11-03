@@ -60,6 +60,36 @@ def signal_bar(percent):
 
 
 @dataclass
+class KeyValueRows:
+    """Aligned properties, with optional plain notices/actions between them."""
+
+    rows: list
+
+    def __len__(self):
+        return len(self.rows)
+
+    def render(self, width):
+        labels = [cells(row[0]) + 1 for row in self.rows if isinstance(row, tuple)]
+        values = [cells(row[1]) for row in self.rows if isinstance(row, tuple)]
+        reserve = min(24, max(12, max(values, default=0)))
+        label_width = min(max(labels, default=0), max(1, width - reserve - 2))
+        value_start = label_width + 2
+        result = []
+        for row in self.rows:
+            if not isinstance(row, tuple):
+                result.append(row)
+                continue
+            label, value = row
+            label = clipped(str(label) + ':', label_width)
+            shown = clipped(value, max(0, width - value_start))
+            signals = [(value_start + start, length, percent)
+                       for start, length, percent in getattr(value, 'signals', ())
+                       if start + length <= cells(shown)]
+            result.append(SignalText(label + ' ' * (value_start - cells(label)) + shown, signals))
+        return result
+
+
+@dataclass
 class NetworkTable:
     headers: tuple
     rows: list
@@ -150,13 +180,15 @@ class Dialogs:
             if deadline is not None:
                 seconds = countdown() if countdown else max(0, int(deadline - time.monotonic()))
                 ui._safe_addstr(win, 1, 3, f"Automatic revert in {seconds}s")
+            body = lines.render(width - 6) if isinstance(lines, KeyValueRows) else lines
+            choices = items.render(width - 6) if isinstance(items, KeyValueRows) else items
             if table:
                 header, separator, data = table.render(width - 6)
-                shown_lines = [*lines[:max(0, height - 10)], header, separator]
-                shown_items = [*data, *items]
+                shown_lines = [*body[:max(0, height - 10)], header, separator]
+                shown_items = [*data, *choices]
             else:
-                shown_lines = lines[:height - 8]
-                shown_items = items
+                shown_lines = body[:height - 8]
+                shown_items = choices
             content = len(shown_lines)
             for row, text in enumerate(shown_lines, 2):
                 self.draw_line(win, row, 3, text, width - 6, ui._style['body'])
@@ -194,6 +226,9 @@ class Dialogs:
                 return None if back or not count else selected
 
     def message(self, title, text):
+        if isinstance(text, KeyValueRows):
+            self.choose(title, text, ["OK"])
+            return
         rows, columns = self.ui._stdscr.getmaxyx()
         width = max(1, geometry(rows, columns, 1)[1] - 6)
         lines = [part for line in str(text).splitlines()
@@ -280,11 +315,12 @@ class WifiManager:
                         current = [a for a in self.points if a.active]
                         if current:
                             bar = signal_bar(current[0].signal)
-                            state.insert(2, SignalText(f'Signal: {bar}; {wifi.band(current[0].freq)}',
-                                                      [(8 + start, length, percent) for start, length, percent in bar.signals]))
+                            state.insert(2, ('Signal', SignalText(f'{bar}; {wifi.band(current[0].freq)}',
+                                                                 bar.signals)))
                 except Error:
                     state = ['Live state unavailable (adapter absent or NetworkManager not running)']
-                action = self.dialog.choose('Wi-Fi', [f'Interface: {self.iface}', *state[:5], *self.notes[:1]],
+                action = self.dialog.choose('Wi-Fi', KeyValueRows([('Interface', self.iface),
+                                                                 *state[:5], *self.notes[:1]]),
                                             [f'Saved networks ({len(self.profiles)}) --->',
                                              'Available networks --->', 'Add network / hidden SSID --->',
                                              'Select interface --->', 'Radio / boot country / batch options --->',
@@ -347,25 +383,26 @@ class WifiManager:
 
     def profile_actions(self, profile):
         action = self.dialog.choose(profile.ssid,
-                                    [f'Profile: {profile.name}', f'UUID: {profile.uuid or "(not assigned)"}',
-                                     f'Security: {profile.auth}; mode: {profile.mode}',
-                                     f'Active: {profile.active or "no"}; interface: {profile.iface or "any"}'],
+                                    KeyValueRows([('Profile', profile.name), ('UUID', profile.uuid or '(not assigned)'),
+                                                  ('Security', profile.auth), ('Mode', profile.mode),
+                                                  ('Active', profile.active or 'no'),
+                                                  ('Interface', profile.iface or 'any')]),
                                     ['Details', 'Connect now', 'Edit profile', 'Forget network'])
         if action == 0:
             from board_tune.hooks.network import _sections
             data = _sections(profile.text)
-            lines = [f'UUID: {profile.uuid}', f'Autoconnect: {profile.autoconnect}', f'Priority: {profile.priority}']
+            lines = [('UUID', profile.uuid), ('Autoconnect', profile.autoconnect), ('Priority', profile.priority)]
             wireless = data.get('wifi', data.get('802-11-wireless', {}))
             mode = wifi.powersave_mode(wireless)
             raw = wireless.get('powersave', [''])[0]
             label = wifi.POWERSAVE_LABELS[mode] if mode != 'keep' else f'Unspecified/kept ({raw or "default"})'
-            lines.append(f'Power saving (profile): {label}')
+            lines.append(('Power saving (profile)', label))
             for key in ('method', 'address1', 'gateway', 'dns'):
-                lines.append(f'IPv4 {key}: {data.get("ipv4", {}).get(key, [""])[0]}')
+                lines.append((f'IPv4 {key}', data.get('ipv4', {}).get(key, [''])[0]))
             if profile.active:
                 lines += wifi.device_status(self.target, profile.active)
-                lines.append(f'Power saving (driver): {wifi.power_status(self.target, profile.active)}')
-            self.dialog.message(profile.ssid, '\n'.join(lines))
+                lines.append(('Power saving (driver)', wifi.power_status(self.target, profile.active)))
+            self.dialog.message(profile.ssid, KeyValueRows(lines))
         elif action == 1:
             self.live(profile)
         elif action == 2:
@@ -457,9 +494,9 @@ class WifiManager:
                         value = '(hidden)'
                     elif key == 'powersave':
                         value = wifi.POWERSAVE_LABELS[value]
-                    labels.append(f'{label}: {value}')
+                    labels.append((label, value))
                 action = self.dialog.choose('Edit Wi-Fi profile', ['Save only: review/apply when leaving menuconfig'],
-                                            [*labels, 'Save only', 'Connect now'])
+                                            KeyValueRows([*labels, 'Save only', 'Connect now']))
                 if action is None:
                     return
                 if action in (len(values), len(values) + 1):
@@ -511,10 +548,10 @@ class WifiManager:
         access = getattr(self.target, 'access_interface', lambda: None)()
         iface = profile.active or profile.iface or self.iface
         if self.dialog.choose('Forget active network' if action == 'forget' else 'Connect now',
-                              [f'Profile: {profile.name}', f'UUID: {profile.uuid}',
-                               f'Affected Wi-Fi adapter: {iface}; SSH adapter: {access or "unknown/local"}',
+                              KeyValueRows([('Profile', profile.name), ('UUID', profile.uuid),
+                               ('Affected Wi-Fi adapter', iface), ('SSH adapter', access or 'unknown/local'),
                                'This disconnects Wi-Fi.' if action == 'forget' else 'Switch Wi-Fi now; other menu edits stay pending.',
-                               'Without confirmation, the board reverts within 60 seconds.'],
+                               'Without confirmation, the board reverts within 60 seconds.']),
                               ['Cancel', 'Disconnect and forget now' if action == 'forget' else 'Connect now']) != 1:
             return False
         transaction = wifi.LiveTransaction(self.session, profile, iface, action)
@@ -549,7 +586,7 @@ class WifiManager:
             except Error:
                 pass  # The board will revert without client confirmation.
         if wait_for(('confirm', *transaction.TERMINAL), 'Changing Wi-Fi') and state['state'] == 'confirm':
-            decision = self.dialog.choose('Keep Wi-Fi change?', state.get('details', '').splitlines(),
+            decision = self.dialog.choose('Keep Wi-Fi change?', KeyValueRows(wifi.status_fields(state.get('details', ''))),
                                           ['Revert', 'Keep change'],
                                           deadline=time.monotonic() + max(0, state['remaining'] - 2))
             if decision == 1:

@@ -156,12 +156,33 @@ def inventory(target, notes=None):
     return sorted(found.values(), key=lambda p: (not bool(p.active), -p.priority, p.name, p.uuid, p.path))
 
 
+def status_fields(output):
+    """Parse escaped nmcli status fields without splitting colons in values."""
+    labels = {'GENERAL.STATE': 'State', 'GENERAL.CONNECTION': 'Connection',
+              'GENERAL.REASON': 'Reason', 'IP4.ADDRESS': 'IPv4 address',
+              'IP4.GATEWAY': 'Gateway', 'IP4.DNS': 'DNS'}
+    result = []
+    for line in output.splitlines():
+        if not line:
+            continue
+        parts = fields(line)
+        if len(parts) < 2:
+            result.append(line)
+            continue
+        name, value = parts[0], ':'.join(parts[1:])
+        base = name.split('[', 1)[0]
+        suffix = name[len(base):]
+        label = labels.get(base, base) + (' ' + suffix if suffix else '')
+        result.append((label, value))
+    return result
+
+
 def device_status(target, iface):
     if not target.live:
         return ["Offline target: connection status and scanning unavailable"]
     output = nmcli(target, "-f", "GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS",
                    "device", "show", iface)
-    return ["  ".join(fields(line)) for line in output.splitlines() if line]
+    return status_fields(output)
 
 
 def radio_status(target):

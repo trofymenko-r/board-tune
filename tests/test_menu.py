@@ -111,7 +111,8 @@ def test_wifi_browser_keeps_offline_profiles_unchanged(tmp_path, rootfs):
         session.wait("Saved Wi-Fi networks")
         session.wait("Lab")
         session.send("\n")
-        session.wait("UUID: abc")
+        session.wait("UUID:")
+        session.wait("abc")
         session.send("\x1b")
         session.send("\x1b")
         session.send("\x1b")
@@ -311,6 +312,28 @@ def test_wifi_password_form_masks_input_and_cancel_creates_nothing(tmp_path, roo
         session.send('q\x1bq')
         session.wait()
         assert secret.encode() not in session.output
+    assert not list((rootfs / 'etc/NetworkManager/system-connections').glob('*.nmconnection'))
+
+
+def test_wifi_profile_columns_reflow_without_losing_field_selection(tmp_path, rootfs):
+    with terminal(tmp_path, target=rootfs) as (session, destination):
+        session.enter_hook('wifi')
+        session.wait('Offline target')
+        session.send('jj\n')
+        session.wait('Edit Wi-Fi profile')
+        session.send('\nLabSSID\n')
+        session.resize(24, 60)
+        session.send('j' * 12)
+        session.wait('Power saving:')
+        session.wait('Keep existing setting')
+        session.output = b''
+        session.resize(30, 100)
+        session.send('k' * 12 + '\n')
+        session.wait('Ctrl-U: clear')
+        session.wait('LabSSID')
+        session.send('\x1bq\x1bq')
+        session.wait()
+        assert session.process.returncode == 0
     assert not list((rootfs / 'etc/NetworkManager/system-connections').glob('*.nmconnection'))
 
 

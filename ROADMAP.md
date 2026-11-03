@@ -148,6 +148,17 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Wi-Fi property columns (2026-11-03): align labels and values in the active
+status, profile editor/details and live-change confirmation dialogs. Parse
+nmcli status into named properties, preserving escaped connection names and
+indexed addresses. Recalculate column widths on each redraw using terminal
+cell widths; clip long labels/values when space is limited. Preserve signal
+color spans, masked passwords and field/action selection indexes.
+Verification: 454 tests passed, 1 root-only test skipped, including Unicode
+column widths, signal spans and a real-terminal profile edit resized from
+100 to 60 columns and back without losing field selection or draft values.
+No board settings were applied for this presentation change.
+
 Wi-Fi inventory correction (2026-11-03): the owner's running image contains a
 NetworkManager `.nmmeta` UUID tombstone pointing to `/dev/null`. The Wi-Fi
 manager incorrectly tried to read this metadata as a connection and aborted.
