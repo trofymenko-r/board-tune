@@ -157,8 +157,13 @@ commands on the index page and manual setup retained in the documentation.
 The Python maintainer entry point delegates to the same script. Add the public
 packaging fixtures to pybuild's test workspace. Twenty installer/distribution
 tests and ShellCheck pass. The full 0.1.2 build passed 464 tests with 3 skips
-and lintian reports no issues. Signed archive checks passed; publication and
-downloaded-installer verification from the public URL remain pending.
+and lintian reports no issues. Signed archive checks passed. Published v0.1.2
+and the standalone /install-apt endpoint through successful workflow
+41739274174; retained v0.1.1 packages and matching source in the APT archive.
+A fresh Debian 12 container with neither Git nor Python downloaded the script
+from the public HTTPS URL, checked its SHA-256 against the committed script,
+ran its preview, installed 0.1.2-1 and verified CLI/Kconfig resources. Runtime
+Python dependencies were installed by APT. No host APT or board changes made.
 The archive checker now exercises standalone installation, repeated runs,
 foreign-file/symlink preservation, source retrieval and signature/index tampering.
 
