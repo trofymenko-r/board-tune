@@ -24,6 +24,7 @@ class Target:
 
     live = False
     login_uid: int | None = None
+    sudo_uses_password = False
     description = ""
     # Whether file ownership is applied and compared. False when the
     # target is a directory written without root privileges.

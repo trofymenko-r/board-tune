@@ -148,6 +148,21 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+SSH sudo authentication (2026-11-03): support ordinary password-protected sudo
+with one terminal prompt before the menu and connection-local credentials.
+Negotiate each privileged command before sending its stdin so cached sudo or
+NOPASSWD cannot mistake the password for file contents or log it as command
+input. Root, passwordless and unattended paths remain distinct. Refuse edits
+that would invalidate the connected user's active sudo authentication.
+Verification: 428 tests passed, 1 skipped. A real OpenSSH + sudo 1.9.16
+Debian 13 container verified one password prompt, repeated root operations,
+binary stdin, cached sudo and a switch to NOPASSWD. With sudo input auditing
+enabled, none of 41 audit files contained the credential. Noninteractive
+password-required access failed before sending command input. The owner's
+Pi still needs the terminal password prompt confirmed by the owner.
+Packaging-script simplification is queued after this access fix; publication
+remains explicitly deferred.
+
 2026-11-03 distribution: owner selected GPLv3 and GitHub Pages under
 `trofymenko-r`. Prepare GPL-3.0-only licensing, standard Debian binary/source
 packages and a signed APT archive at `https://trofymenko-r.github.io/board-tune/`.

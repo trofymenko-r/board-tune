@@ -192,6 +192,7 @@ def test_live_uses_native_commands_and_private_stdin(userfs, target, tmp_path, m
     "USERS_SHELL=/bin/sh",
     "USERS_GROUPS_REPLACE=y",
     "USERS_SUDO_REMOVE=y",
+    "USERS_SUDO_PASSWORD=y",
 ])
 def test_live_refuses_to_break_connected_administrator(userfs, target, tmp_path, assignment):
     from board_tune.errors import Error
@@ -204,4 +205,19 @@ def test_live_refuses_to_break_connected_administrator(userfs, target, tmp_path,
         conf.set(value)
     target.live, target.login_uid = True, 1000
     with pytest.raises(Error, match="connect as another administrator"):
+        build_plan(Registry.load(), conf.config, target)
+
+
+@pytest.mark.parametrize('action', ['HASH', 'LOCK'])
+def test_live_keeps_password_used_for_current_sudo(userfs, target, tmp_path, action):
+    from board_tune.errors import Error
+    (userfs / 'etc/shadow').write_text('root:*:20000:0:99999:7:::\npi:old:20000:0:99999:7:::\n')
+    source = tmp_path / 'new-hash'
+    source.write_text(HASH)
+    conf = Configuration(Registry.load(), str(tmp_path))
+    for assignment in ('USERS=y', 'USERS_NAME=pi', f'USERS_PASSWORD_{action}=y',
+                       *([f'USERS_PASSWORD_HASH_FILE={source}'] if action == 'HASH' else [])):
+        conf.set(assignment)
+    target.live, target.login_uid, target.sudo_uses_password = True, 1000, True
+    with pytest.raises(Error, match='password used by sudo'):
         build_plan(Registry.load(), conf.config, target)

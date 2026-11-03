@@ -116,7 +116,10 @@ Backups are retained until the operator removes them.
 
 - **`[user@]host`**: a running board, reached with the system `ssh`
   client, so `~/.ssh/config`, agents and jump hosts work. The user must
-  be root or have passwordless `sudo` on the board.
+  be root or be allowed to use `sudo` as root. If sudo needs a password,
+  board-tune asks once in the terminal before opening the menu. The password
+  stays in memory for that connection and is not saved or passed in command
+  arguments. Unattended runs require root or passwordless sudo.
 - **Block device** (`/dev/sdb`, `/dev/mmcblk0`): the board's SD card or
   USB drive. Only removable disks are accepted, and disks with
   partitions mounted outside `/media`, `/run/media` or `/mnt` are
