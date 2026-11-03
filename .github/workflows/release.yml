@@ -1,0 +1,129 @@
+name: Debian release and APT repository
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: board-tune-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Require a matching version tag
+        run: |
+          version=$(dpkg-parsechangelog -ldebian/changelog -SVersion)
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF_NAME" = "v${version%-*}"
+      - name: Build in Debian Bookworm
+        run: |
+          docker build --build-arg BUILDER_UID="$(id -u)" \
+            -t board-tune-packaging -f packaging/Containerfile packaging
+          mkdir -p dist/debian
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD:/src:ro" -v "$PWD/dist/debian:/out" \
+            board-tune-packaging python3 /src/tools/build_deb.py --output /out
+      - name: Check package metadata
+        run: |
+          docker run --rm -v "$PWD/dist/debian:/packages:ro" \
+            board-tune-packaging sh -c 'lintian /packages/*.changes'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-release
+          path: dist/debian/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: debian-release
+          path: dist/debian
+      - name: Install archive tools
+        run: sudo apt-get update && sudo apt-get install -y apt-utils gnupg
+      - name: Import archive signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          APT_SIGNING_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
+        run: |
+          test -n "$APT_SIGNING_KEY"
+          test -n "$APT_SIGNING_PASSPHRASE"
+          export GNUPGHOME="$RUNNER_TEMP/board-tune-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s' "$APT_SIGNING_KEY" | gpg --batch --import
+          printf '%s' "$APT_SIGNING_PASSPHRASE" >"$GNUPGHOME/passphrase"
+          chmod 600 "$GNUPGHOME/passphrase"
+          fingerprint=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
+          test -n "$fingerprint"
+          expected=$(gpg --batch --with-colons --show-keys packaging/board-tune-archive-key.asc | awk -F: '$1 == "fpr" {print $10; exit}')
+          test "$fingerprint" = "$expected"
+          printf 'GNUPGHOME=%s\nAPT_SIGNING_KEY_ID=%s\n' "$GNUPGHOME" "$fingerprint" >>"$GITHUB_ENV"
+      - name: Upload release and collect published versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "board-tune $GITHUB_REF_NAME" --generate-notes
+          for asset in dist/debian/*.deb dist/debian/*.dsc dist/debian/*.tar.xz; do
+            existing=$(mktemp -d)
+            name=$(basename "$asset")
+            if gh release download "$GITHUB_REF_NAME" --pattern "$name" --dir "$existing"; then
+              cmp "$asset" "$existing/$name"
+            else
+              gh release upload "$GITHUB_REF_NAME" "$asset"
+            fi
+            rm -rf "$existing"
+          done
+          notes=$(mktemp)
+          gh release view "$GITHUB_REF_NAME" --json body --jq .body >"$notes"
+          if ! grep -Fq "$APT_SIGNING_KEY_ID" "$notes"; then
+            printf '\nAPT archive signing fingerprint: `%s`\n' "$APT_SIGNING_KEY_ID" >>"$notes"
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$notes"
+          fi
+          rm "$notes"
+          mkdir -p dist/archive
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' |
+          while IFS= read -r tag; do
+            destination=$(mktemp -d "$PWD/dist/archive/release-XXXXXX")
+            gh release download "$tag" --dir "$destination" \
+              --pattern '*.deb' --pattern '*.dsc' --pattern '*.tar.xz'
+          done
+      - name: Build signed repository
+        run: |
+          python3 tools/build_apt_repo.py --packages dist/archive --output dist/apt \
+            --key "$APT_SIGNING_KEY_ID" --passphrase-file "$GNUPGHOME/passphrase"
+      - name: Verify signed APT installation and tamper rejection
+        run: python3 tools/check_apt_repo.py --repo dist/apt
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/apt
+      - name: Deploy repository
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [ -n "${GNUPGHOME:-}" ]; then
+            gpgconf --kill all || true
+            rm -rf -- "$GNUPGHOME"
+          fi

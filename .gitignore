@@ -4,3 +4,9 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+.pybuild/
+debian/.debhelper/
+debian/board-tune/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars

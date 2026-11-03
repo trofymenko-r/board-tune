@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+cd "$work"
+board-tune --version
+board-tune --help >/dev/null
+printf 'CONFIG_BOARD_RPI5=y\nCONFIG_SYSTEM=y\nCONFIG_SYSTEM_ALIAS_LL_ENABLE=y\n' >input.cfg
+board-tune --load input.cfg --save output.cfg
+grep -q '^CONFIG_SYSTEM_ALIAS_LL_ENABLE=y$' output.cfg
+python3 - <<'PY'
+import kconfiglib
+import menuconfig
+from board_tune.registry import Registry
+registry = Registry.load()
+assert registry.hooks
+assert all(hook.kconfig().is_file() for hook in registry.hooks)
+rpi = next(platform for platform in registry.platforms if platform.name == 'rpi')
+assert rpi.hook_kconfig('hardware').is_file()
+assert rpi.hook_kconfig('serial_console').is_file()
+print('Installed CLI, dependencies and Kconfig resources verified')
+PY

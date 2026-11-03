@@ -1,0 +1,14 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        debhelper dh-python pybuild-plugin-pyproject python3-all \
+        python3-setuptools python3-kconfiglib python3-pytest \
+        build-essential dpkg-dev git ca-certificates apt-utils gnupg lintian \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG BUILDER_UID=1000
+RUN useradd --create-home --uid "$BUILDER_UID" builder
+
+USER builder
+WORKDIR /tmp

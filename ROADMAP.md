@@ -148,6 +148,23 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+2026-11-03 distribution: owner selected GPLv3 and GitHub Pages under
+`trofymenko-r`. Prepare GPL-3.0-only licensing, standard Debian binary/source
+packages and a signed APT archive at `https://trofymenko-r.github.io/board-tune/`.
+Release automation must run tests, retain previous release assets, publish
+matching source, and keep the signing key outside Git. GitHub authorization,
+repository creation/Pages setup and the first public release remain pending.
+Verified in an unprivileged Bookworm build: 409 tests passed, 3 skipped.
+Binary and complete source packages build with debhelper/pybuild; lintian has
+no errors (the initial-upload/no-Debian-bug warning is expected for this
+third-party archive). Signed APT installation by package name, matching source
+extraction, modified-signature rejection and index hash rejection passed in
+Debian 12, Debian 13 and Ubuntu 24.04 amd64 containers. A separate ARM64 run
+could not start because this host has no ARM emulator; do not count it as
+verified. A dedicated protected local signing key exists outside Git, with
+only its public key tracked. Do not announce the public URL as live until
+GitHub authorization, Pages deployment and a live-URL install succeed.
+
 2026-10-21 menu polish: replaced the text-only exit question with a centered
 six-row kernel-style Yes/No dialog on the blue background. Yes defaults to
 review, No discards the pending session, Esc returns to editing; arrows,

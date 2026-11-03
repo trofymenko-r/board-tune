@@ -7,8 +7,18 @@ name = "board-tune"
 version = "0.1.0"
 description = "Hook-based customization of Linux boards over SSH or through their boot media"
 readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Ruslan Trofymenko", email = "ruslan.trofymenko@oddsystems.io"}]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+]
 requires-python = ">=3.9"
 dependencies = ["kconfiglib==14.1.0"]
+
+[project.urls]
+Repository = "https://github.com/trofymenko-r/board-tune"
+Issues = "https://github.com/trofymenko-r/board-tune/issues"
 
 [project.optional-dependencies]
 test = ["pytest"]

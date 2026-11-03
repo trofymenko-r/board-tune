@@ -1,0 +1,31 @@
+Source: board-tune
+Section: admin
+Priority: optional
+Maintainer: Ruslan Trofymenko <ruslan.trofymenko@oddsystems.io>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-setuptools (>= 64),
+               python3-kconfiglib,
+               python3-pytest
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/trofymenko-r/board-tune
+Vcs-Git: https://github.com/trofymenko-r/board-tune.git
+Vcs-Browser: https://github.com/trofymenko-r/board-tune
+
+Package: board-tune
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends},
+         python3-kconfiglib (>= 14.1.0),
+         python3-kconfiglib (<< 14.1.1),
+         openssh-client, sudo, mount, udev
+Description: configure Linux boards over SSH or through offline boot media
+ Configure Raspberry Pi 4 and 5 boards through a compact menuconfig interface
+ or Kconfig profiles. Manage users, serial consoles, network settings, SSH,
+ system defaults and hardware boot parameters.
+ .
+ Changes are previewed and backed up before application. Running boards are
+ reached through SSH; SD cards, disk images and extracted root filesystems
+ can be configured without executing their programs on the host.

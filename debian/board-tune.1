@@ -1,0 +1,56 @@
+.TH BOARD-TUNE 1 "November 2026" "board-tune 0.1.0" "User Commands"
+.SH NAME
+board-tune \- configure Linux boards over SSH or through offline boot media
+.SH SYNOPSIS
+.B board-tune
+.RI [ TARGET ]
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+Configure a Raspberry Pi through an interactive Kconfig menu or saved profiles.
+TARGET can be a user@host SSH destination, a whole removable disk, a disk image,
+or an extracted root filesystem directory.
+Changes are previewed before confirmation and affected files are backed up.
+.SH OPTIONS
+.TP
+.BI "--load " FILE
+Load a Kconfig profile. Repeat to merge profiles. Without --menu, use batch mode.
+.TP
+.BI "--set " SYMBOL=VALUE
+Override one configuration value.
+.TP
+.BI "--save " FILE
+Export the minimal configuration.
+.TP
+.B --menu
+Open the interactive menu after loading profiles.
+.TP
+.BR -n ", " --dry-run
+Show planned changes without applying them.
+.TP
+.BR -y ", " --yes
+Apply planned changes without the final confirmation.
+.TP
+.B --list-backups
+List file backups on TARGET.
+.TP
+.BI "--restore " ID
+Preview and restore a file backup. Combine with --dry-run to inspect only.
+.TP
+.BR -h ", " --help
+Show command help.
+.TP
+.B --version
+Show the program version.
+.SH ENVIRONMENT
+.B BOARD_TUNE_PATH
+is a colon-separated list of extra hook and platform directories.
+.SH FILES
+.I /var/backups/board-tune
+contains private snapshots on the target, including original file contents
+and metadata. Backups do not undo runtime effects.
+.SH SEE ALSO
+.BR ssh (1),
+.BR lsblk (8),
+.BR losetup (8)
+.PP
+Additional documentation is installed under /usr/share/doc/board-tune.

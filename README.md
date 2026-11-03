@@ -11,7 +11,16 @@ platform-agnostic; other boards are added as platforms.
 The agreed implementation plan and outstanding board checks are tracked in
 [ROADMAP.md](ROADMAP.md).
 
+Copyright (C) 2026 Ruslan Trofymenko. Licensed under GNU GPL version 3 only
+(`GPL-3.0-only`); see [LICENSE](LICENSE). Distributed without warranty.
+
 ## Installation
+
+Debian/Ubuntu packages and the signed GitHub Pages APT repository are described
+in [Distribution](docs/distribution.md), including local builds and release setup.
+The initial public release is pending repository setup.
+
+For development:
 
 ```sh
 python3 -m venv .venv
