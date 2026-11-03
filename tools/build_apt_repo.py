@@ -85,6 +85,8 @@ def build(packages, output, key, passphrase_file=None):
         if not public:
             raise ValueError('signing key could not be exported')
         (output / 'board-tune.asc').write_bytes(public)
+        installer = Path(__file__).resolve().parents[1] / 'scripts/install-apt'
+        shutil.copyfile(installer, output / 'install-apt')
         listing = run('gpg', '--batch', '--with-colons', '--list-keys', key).decode()
         fingerprint = next(line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:'))
         (output / '.nojekyll').touch()
@@ -92,6 +94,10 @@ def build(packages, output, key, passphrase_file=None):
             '<!doctype html><html lang="en"><meta charset="utf-8">'
             '<title>board-tune APT repository</title><h1>board-tune APT repository</h1>'
             '<p>Debian 12/13 and Ubuntu packages; amd64, arm64 and armhf.</p>'
+            '<h2>Install</h2><pre>curl -fsSLO https://trofymenko-r.github.io/board-tune/install-apt\n'
+            'sudo sh ./install-apt</pre>'
+            '<p><a href="install-apt">Download standalone installer</a> '
+            '(no Git checkout or virtualenv required).</p>'
             '<p><a href="board-tune.asc">Archive signing key</a></p>'
             f'<p>Key fingerprint: <code>{html.escape(fingerprint)}</code></p>'
             '<p><a href="https://github.com/trofymenko-r/board-tune/blob/main/docs/distribution.md">'

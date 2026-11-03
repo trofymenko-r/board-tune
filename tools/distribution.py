@@ -14,8 +14,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
-import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = 'board-tune-packaging:bookworm'
@@ -247,32 +245,7 @@ def publish(args):
 
 
 def install(args):
-    if args.dry_run:
-        print(f'Would add {URL} with the committed archive key and install board-tune')
-        print('Dry run: no files changed and no packages installed')
-        return
-    if os.geteuid() != 0:
-        run(['sudo', sys.executable, __file__, 'install'])
-        return
-    source = ('Types: deb deb-src\n' + f'URIs: {URL}\nSuites: stable\nComponents: main\n'
-              'Architectures: amd64 arm64 armhf\nSigned-By: /etc/apt/keyrings/board-tune.asc\n')
-    key = (ROOT / 'packaging/board-tune-archive-key.asc').read_bytes()
-    destinations = {Path('/etc/apt/keyrings/board-tune.asc'): key,
-                    Path('/etc/apt/sources.list.d/board-tune.sources'): source.encode()}
-    for path, content in destinations.items():
-        if path.is_symlink() or (path.exists() and path.read_bytes() != content):
-            raise SystemExit(f'{path}: different configuration exists; review it before replacing')
-    try:
-        with urllib.request.urlopen(URL + 'dists/stable/InRelease', timeout=15) as response:
-            response.read(1)
-    except urllib.error.URLError:
-        raise SystemExit('The public APT archive is not available; no files changed') from None
-    for path, content in destinations.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
-        path.chmod(0o644)
-    run(['apt-get', 'update'])
-    run(['apt-get', 'install', '-y', 'board-tune'])
+    run(['sh', ROOT / 'scripts/install-apt', *(['--dry-run'] if args.dry_run else [])])
 
 
 def main(argv=None):

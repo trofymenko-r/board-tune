@@ -6,13 +6,36 @@ from pathlib import Path
 import subprocess
 
 CHECK = r'''
-install -d /etc/apt/keyrings
-cp /repository/board-tune.asc /etc/apt/keyrings/board-tune.asc
-printf 'Types: deb deb-src\nURIs: file:/repository\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/board-tune.asc\n' >/etc/apt/sources.list.d/board-tune.sources
-apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends board-tune dpkg-dev >/tmp/install.log 2>&1 || {
+# Redirect only this test copy to the mounted signed archive. The shipped
+# standalone installer always uses the public HTTPS repository.
+sed 's,https://trofymenko-r.github.io/board-tune/,file:/repository/,g' /repository/install-apt >/tmp/install-apt
+sh /tmp/install-apt >/tmp/install.log 2>&1 || {
     tail -50 /tmp/install.log; exit 1;
 }
+sh /tmp/install-apt >/tmp/reinstall.log 2>&1 || { tail -50 /tmp/reinstall.log; exit 1; }
+test "$(stat -c %a /etc/apt/keyrings/board-tune.asc)" = 644
+test "$(stat -c %a /etc/apt/sources.list.d/board-tune.sources)" = 644
+for file in /etc/apt/keyrings/board-tune.asc /etc/apt/sources.list.d/board-tune.sources; do
+    cp "$file" /tmp/original-config
+    printf '\nforeign configuration\n' >>"$file"
+    cp "$file" /tmp/foreign-config
+    if sh /tmp/install-apt >/tmp/conflict.log 2>&1; then
+        echo 'ERROR: installer accepted conflicting configuration'; exit 1
+    fi
+    grep -q 'different configuration exists' /tmp/conflict.log
+    cmp "$file" /tmp/foreign-config
+    cp /tmp/original-config "$file"
+    mv "$file" "$file.saved"
+    ln -s "$file.saved" "$file"
+    if sh /tmp/install-apt >/tmp/conflict.log 2>&1; then
+        echo 'ERROR: installer accepted a configuration symlink'; exit 1
+    fi
+    test -L "$file"
+    cmp "$file.saved" /tmp/original-config
+    rm "$file"
+    mv "$file.saved" "$file"
+done
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends dpkg-dev >/tmp/source-tools.log 2>&1
 sh /tests/smoke
 cd /tmp
 apt-get source board-tune
@@ -43,7 +66,7 @@ for path in Path('/tmp/tampered/dists/stable/main').glob('binary-*/Packages*'):
         path.write_bytes(path.read_bytes() + b'\n')
 PY
 check_rejected 'Hash Sum mismatch|File has unexpected size'
-echo 'APT install, matching source extraction, signature and index tamper rejection passed'
+echo 'Standalone install/reinstall, conflict guards, source extraction and APT tamper rejection passed'
 '''
 
 

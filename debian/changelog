@@ -1,3 +1,11 @@
+board-tune (0.1.2-1) unstable; urgency=medium
+
+  * Publish a standalone APT installer with its embedded archive key.
+  * Add download instructions and manual repository setup to the docs.
+  * Verify repeat installation, configuration guards and signed APT updates.
+
+ -- Ruslan Trofymenko <ruslan.trofymenko@oddsystems.io>  Wed, 04 Nov 2026 01:24:08 +0200
+
 board-tune (0.1.1-1) unstable; urgency=medium
 
   * Prepare the first public release with GPL-3.0-only source packages.

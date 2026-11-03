@@ -17,16 +17,17 @@ Copyright (C) 2026 Ruslan Trofymenko. Licensed under GNU GPL version 3 only
 ## Installation
 
 Install the published package from the signed
-[APT repository](https://trofymenko-r.github.io/board-tune/), using Git and
-Python 3:
+[APT repository](https://trofymenko-r.github.io/board-tune/):
 
 ```sh
-git clone https://github.com/trofymenko-r/board-tune.git
-cd board-tune
-sudo ./scripts/install-apt
+curl -fsSLO https://trofymenko-r.github.io/board-tune/install-apt
+sudo sh ./install-apt
 ```
 
-This configures APT and installs `board-tune`. Future updates use normal
+The standalone script needs no Git checkout or virtualenv. It configures APT
+and installs `board-tune`; use `sh ./install-apt --dry-run` to preview it.
+For manual repository setup, see [Distribution](docs/distribution.md#manual-apt-setup).
+Future updates use normal
 `sudo apt update` and `sudo apt upgrade`. Binary and matching source packages
 are also attached to [GitHub releases](https://github.com/trofymenko-r/board-tune/releases).
 

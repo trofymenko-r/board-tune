@@ -27,7 +27,7 @@ def distribution(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('command', [
-    ['publish', 'v0.1.1', '--dry-run'], ['install', '--dry-run'],
+    ['publish', 'v0.1.1', '--dry-run'],
 ])
 def test_dry_run_never_authenticates_runs_commands_or_contacts_network(distribution, monkeypatch, capsys, command):
     def forbidden(*args, **kwargs):
@@ -35,9 +35,16 @@ def test_dry_run_never_authenticates_runs_commands_or_contacts_network(distribut
     monkeypatch.setattr(distribution, 'run', forbidden)
     monkeypatch.setattr(distribution, 'capture', forbidden)
     monkeypatch.setattr(distribution, 'signing_dir', forbidden)
-    monkeypatch.setattr(distribution.urllib.request, 'urlopen', forbidden)
     distribution.main(command)
     assert 'Dry run: no' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('flags', [[], ['--dry-run']])
+def test_install_uses_the_standalone_script(distribution, monkeypatch, flags):
+    calls = []
+    monkeypatch.setattr(distribution, 'run', lambda args: calls.append(args))
+    distribution.main(['install', *flags])
+    assert calls == [['sh', distribution.ROOT / 'scripts/install-apt', *flags]]
 
 
 def test_bump_updates_all_version_files_and_preserves_history(distribution, monkeypatch):

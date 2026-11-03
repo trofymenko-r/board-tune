@@ -38,7 +38,7 @@ Each script has `--help` for optional paths and distributions.
 ## Prepare a future version
 
 ```sh
-bump-version 0.1.2
+bump-version 0.1.3
 ```
 
 This updates Python metadata, the manual and Debian changelog together. Review
@@ -48,9 +48,9 @@ moved; changed releases need a new version.
 ## Publish a release
 
 ```sh
-publish-release v0.1.2 --dry-run
+publish-release v0.1.3 --dry-run
 # Only when ready:
-publish-release v0.1.2
+publish-release v0.1.3
 ```
 
 The actual command requires GitHub CLI authenticated as `trofymenko-r` with
@@ -73,13 +73,13 @@ The public key is `packaging/board-tune-archive-key.asc`, fingerprint
 
 ## Install from APT
 
-After a release has been deployed, clone the public repository and run its
-installation script (Python 3 is required; a virtualenv is not needed):
+Download the standalone installer with curl and run it on Debian, Ubuntu or
+Raspberry Pi OS (amd64, arm64 or armhf):
 
 ```sh
-git clone https://github.com/trofymenko-r/board-tune.git
-cd board-tune
-sudo ./scripts/install-apt
+curl -fsSLO https://trofymenko-r.github.io/board-tune/install-apt
+sh ./install-apt --dry-run
+sudo sh ./install-apt
 ```
 
 In an existing developer shell, you can preview the same operation first:
@@ -89,8 +89,32 @@ install-apt --dry-run
 sudo ./scripts/install-apt
 ```
 
+The downloaded script is identical to `scripts/install-apt` and needs no Git,
+Python installation or virtualenv. It embeds the public archive key and installs
+CA certificates if needed; APT installs the application's runtime dependencies.
 Use the explicit path with `sudo`, which normally resets PATH.
 
 This adds the committed key with a repository-specific Signed-By entry and
 installs board-tune. Different existing key/source files are not overwritten.
 Once configured, use normal `sudo apt update` and `sudo apt upgrade`.
+
+## Manual APT setup
+
+The equivalent repository configuration, using curl:
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://trofymenko-r.github.io/board-tune/board-tune.asc \
+  | sudo tee /etc/apt/keyrings/board-tune.asc >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/board-tune.asc
+sudo tee /etc/apt/sources.list.d/board-tune.sources >/dev/null <<'EOF'
+Types: deb deb-src
+URIs: https://trofymenko-r.github.io/board-tune/
+Suites: stable
+Components: main
+Architectures: amd64 arm64 armhf
+Signed-By: /etc/apt/keyrings/board-tune.asc
+EOF
+sudo apt update
+sudo apt install board-tune
+```

@@ -148,6 +148,20 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Standalone APT installer (2026-11-04): replace the Python checkout wrapper
+with a POSIX shell installer embedding the existing public archive key.
+Preserve dry-run, same-content reuse and refusal of different files/symlinks;
+support amd64/arm64/armhf and bootstrap CA certificates when absent. Publish
+the identical script as /install-apt in generated APT archives, with download
+commands on the index page and manual setup retained in the documentation.
+The Python maintainer entry point delegates to the same script. Add the public
+packaging fixtures to pybuild's test workspace. Twenty installer/distribution
+tests and ShellCheck pass. The full 0.1.2 build passed 464 tests with 3 skips
+and lintian reports no issues. Signed archive checks passed; publication and
+downloaded-installer verification from the public URL remain pending.
+The archive checker now exercises standalone installation, repeated runs,
+foreign-file/symlink preservation, source retrieval and signature/index tampering.
+
 First public release (2026-11-04): the owner explicitly resumed GitHub
 and APT publication, superseding the earlier publication hold. Prepare 0.1.1
 without moving the existing local v0.1.0 tag, update release instructions and

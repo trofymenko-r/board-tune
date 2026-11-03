@@ -1,3 +1,3 @@
 """board-tune: hook-based customization of Linux boards."""
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"

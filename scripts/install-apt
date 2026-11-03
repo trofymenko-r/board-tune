@@ -1,3 +1,82 @@
 #!/bin/sh
+# Standalone installer for the signed board-tune APT repository.
+# Archive fingerprint: B8E559579253CC9310CDB77279B88B4171E11938
 set -eu
-exec python3 "$(dirname -- "$0")/../tools/distribution.py" install "$@"
+
+usage() {
+    printf '%s\n' 'Usage: sh install-apt [--dry-run | --help]' \
+        'Add the signed APT repository and install board-tune.'
+}
+fail() {
+    printf 'install-apt: %s\n' "$*" >&2
+    exit 1
+}
+if [ "$#" -gt 1 ]; then
+    usage >&2
+    exit 2
+fi
+case "${1-}" in
+    --help|-h) usage; exit 0 ;;
+    --dry-run)
+        printf '%s\n' \
+            'Would add https://trofymenko-r.github.io/board-tune/ with its embedded archive key.' \
+            'Would run apt-get update and apt-get install -y board-tune.' \
+            'Dry run: no files changed and no packages installed'
+        exit 0 ;;
+    '') ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+for command in apt-get dpkg id mktemp cmp install; do
+    command -v "$command" >/dev/null 2>&1 || fail "Required command is missing: $command"
+done
+if [ "$(id -u)" -ne 0 ]; then
+    command -v sudo >/dev/null 2>&1 || fail 'Run this script as root (sudo sh ./install-apt).'
+    exec sudo sh "$0" "$@"
+fi
+case "$(dpkg --print-architecture)" in
+    amd64|arm64|armhf) ;;
+    *) fail 'Supported APT architectures: amd64, arm64, armhf.' ;;
+esac
+
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+trap 'exit 1' HUP INT TERM
+cat >"$work/key" <<'BOARD_TUNE_KEY'
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEauomkxYJKwYBBAHaRw8BAQdAY4nQByv0ggXpQCjQ4+hHWrLcej4pPoUAyHer
+ic1VsyK0OGJvYXJkLXR1bmUgQVBUIGFyY2hpdmUgPHJ1c2xhbi50cm9meW1lbmtv
+QG9kZHN5c3RlbXMuaW8+iJYEExYKAD4WIQS45VlXklPMkxDNt3J5uItBceEZOAUC
+auomkwIbAwUJA8JnAAULCQgHAgYVCgkICwIEFgIDAQIeAQIXgAAKCRB5uItBceEZ
+ONPBAQDTa3H2bBt/VMlhbEM18gh3+9sZTLjFqJQUj140/tTz9wD/Wvu0GqAnMfCs
+/nBxK2WlGlbQyuwPkDt9FWMrvKqgygs=
+=kHL9
+-----END PGP PUBLIC KEY BLOCK-----
+BOARD_TUNE_KEY
+cat >"$work/source" <<'BOARD_TUNE_SOURCE'
+Types: deb deb-src
+URIs: https://trofymenko-r.github.io/board-tune/
+Suites: stable
+Components: main
+Architectures: amd64 arm64 armhf
+Signed-By: /etc/apt/keyrings/board-tune.asc
+BOARD_TUNE_SOURCE
+
+check_existing() {
+    if [ -L "$2" ] || { [ -e "$2" ] && { [ ! -f "$2" ] || ! cmp -s "$1" "$2"; }; }; then
+        fail "$2: different configuration exists; review it before replacing"
+    fi
+}
+check_existing "$work/key" /etc/apt/keyrings/board-tune.asc
+check_existing "$work/source" /etc/apt/sources.list.d/board-tune.sources
+
+if [ ! -s /etc/ssl/certs/ca-certificates.crt ]; then
+    apt-get update
+    apt-get install -y ca-certificates
+fi
+install -d -m 0755 /etc/apt/keyrings /etc/apt/sources.list.d
+install -m 0644 "$work/key" /etc/apt/keyrings/board-tune.asc
+install -m 0644 "$work/source" /etc/apt/sources.list.d/board-tune.sources
+apt-get update
+apt-get install -y board-tune
