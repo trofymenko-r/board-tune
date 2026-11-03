@@ -91,6 +91,51 @@ def test_offline_inventory_keeps_all_profiles_and_secrets_private(saved, target)
     assert 'private-key' not in repr(profiles)
 
 
+@pytest.mark.parametrize('symlink', [False, True])
+def test_inventory_never_reads_nmmeta(saved, target, rootfs, monkeypatch, symlink):
+    saved('Lab', 'lab')
+    metadata = rootfs / 'etc/NetworkManager/system-connections/243f2220.nmmeta'
+    if symlink:
+        metadata.symlink_to('/dev/null')
+    else:
+        metadata.write_text('[.nmmeta]\n')
+    original = target.read
+
+    def read(path):
+        assert not path.endswith('.nmmeta'), 'metadata must not be read as a profile'
+        return original(path)
+
+    monkeypatch.setattr(target, 'read', read)
+    assert [profile.uuid for profile in wifi.inventory(target)] == ['lab']
+
+
+def test_inventory_skips_device_and_broken_links_but_keeps_real_profile_links(saved, rootfs):
+    from board_tune.target import LocalTarget
+    saved('Lab', 'lab')
+    directory = rootfs / 'etc/NetworkManager/system-connections'
+    (directory / 'device.nmconnection').symlink_to('/dev/null')
+    (directory / 'broken.nmconnection').symlink_to('/missing/profile')
+    (directory / 'alias.nmconnection').symlink_to('Lab.nmconnection')
+    # Explicitly expose only the host's /dev for real character-device metadata.
+    target = LocalTarget({'/': str(rootfs), '/dev': '/dev'})
+    assert [profile.uuid for profile in wifi.inventory(target)] == ['lab']
+
+
+def test_wifi_error_text_wraps_in_body_instead_of_being_clipped_as_an_item():
+    from types import SimpleNamespace
+    from board_tune.wifi_menu import Dialogs
+    ui = SimpleNamespace(_stdscr=SimpleNamespace(getmaxyx=lambda: (30, 100)))
+    dialog = Dialogs(ui)
+    calls = []
+    dialog.choose = lambda *args: calls.append(args)
+    error = 'cannot read /etc/NetworkManager/system-connections/' + 'a' * 150 + ': Permission denied'
+    dialog.message('Wi-Fi', error)
+    title, lines, items = calls[0]
+    assert title == 'Wi-Fi' and items == ['OK']
+    assert len(lines) > 1 and all(len(line) <= 82 for line in lines)
+    assert 'Permission denied' in ' '.join(lines)
+
+
 def test_active_readback_beats_alphabetical_order(saved, target, rootfs, monkeypatch):
     saved('A', 'a')
     saved('Z', 'z')

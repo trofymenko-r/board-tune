@@ -148,6 +148,16 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Wi-Fi inventory correction (2026-11-03): the owner's running image contains a
+NetworkManager `.nmmeta` UUID tombstone pointing to `/dev/null`. The Wi-Fi
+manager incorrectly tried to read this metadata as a connection and aborted.
+Skip `.nmmeta` and non-regular symlink destinations without changing target
+files; retain regular profile symlinks and extensionless legacy profiles.
+Wrap error messages into the dialog body so the reason is not truncated.
+Verified 54 Wi-Fi manager and real-terminal menu tests, including metadata
+symlinks, device/broken links, regular profile aliases and error wrapping.
+The owner confirmed the preceding sudo fix opens the menu on pi@192.168.0.10.
+
 SSH sudo authentication (2026-11-03): support ordinary password-protected sudo
 with one terminal prompt before the menu and connection-local credentials.
 Negotiate each privileged command before sending its stdin so cached sudo or

@@ -106,12 +106,18 @@ def inventory(target, notes=None):
     found = {}
     for directory in PROFILE_DIRS:
         for filename in target.listdir(directory):
-            if filename.startswith(".") or filename.endswith(("~", ".bak")):
+            # .nmmeta files are NetworkManager bookkeeping, including UUID
+            # tombstones pointing to /dev/null, rather than connection profiles.
+            if filename.startswith(".") or filename.endswith(("~", ".bak", ".nmmeta")):
                 continue
             path = f"{directory}/{filename}"
             info = target.stat(path)
             if info is None or info.kind not in ('file', 'link'):
                 continue
+            if info.kind == 'link':
+                resolved = target.stat(target.realpath(path))
+                if resolved is None or resolved.kind != 'file':
+                    continue
             text = (target.read(path) or b"").decode(errors="replace")
             data = _sections(text)
             connection = data.get("connection", {})

@@ -5,6 +5,7 @@ from __future__ import annotations
 import curses
 import os
 import threading
+import textwrap
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -193,7 +194,11 @@ class Dialogs:
                 return None if back or not count else selected
 
     def message(self, title, text):
-        self.choose(title, [], str(text).splitlines() + ["OK"])
+        rows, columns = self.ui._stdscr.getmaxyx()
+        width = max(1, geometry(rows, columns, 1)[1] - 6)
+        lines = [part for line in str(text).splitlines()
+                 for part in (textwrap.wrap(visible(line), width, break_on_hyphens=False) or [''])]
+        self.choose(title, lines, ["OK"])
 
     def input(self, title, initial='', secret=False):
         ui, text = self.ui, list(initial)
