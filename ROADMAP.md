@@ -148,14 +148,25 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
-Public release preparation (2026-11-04): the owner explicitly resumed GitHub
+First public release (2026-11-04): the owner explicitly resumed GitHub
 and APT publication, superseding the earlier publication hold. Prepare 0.1.1
 without moving the existing local v0.1.0 tag, update release instructions and
 retain the existing archive signing key. GitHub CLI authorization completed
 as trofymenko-r. The 0.1.1 binary/source package build passed 457 tests with
-3 skips and lintian has no errors. Repository creation, release workflow,
-Pages deployment and public-URL APT verification are pending; do not describe
-the archive as live until these checks pass.
+3 skips and lintian has no errors. Published the public repository at
+https://github.com/trofymenko-r/board-tune and release v0.1.1 with the binary,
+.dsc and complete source tarballs. GitHub initially registered the new tag
+before starting its workflow; dispatched the tag workflow explicitly.
+The Pages environment initially allowed only main and rejected the tag;
+added the v* tag policy and reran only the failed publish job.
+Workflow 41735128104 completed successfully on its second attempt, including
+signed APT installation, matching source extraction and tamper rejection.
+https://trofymenko-r.github.io/board-tune/ is live. A separate Debian 12
+container installed 0.1.1-1 from that public HTTPS URL using install-apt,
+passed the installed CLI/Kconfig smoke test and extracted the matching
+0.1.1 source with setup.env and the corrected pybuild manifest intact.
+The archive fingerprint remains B8E559579253CC9310CDB77279B88B4171E11938.
+No host APT configuration or board settings were changed.
 
 Debian test workspace correction (2026-11-04): the developer-environment
 tests initially passed only from a checkout. The pybuild workspace omitted

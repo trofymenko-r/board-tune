@@ -16,7 +16,21 @@ Copyright (C) 2026 Ruslan Trofymenko. Licensed under GNU GPL version 3 only
 
 ## Installation
 
-For development or local packaging, run this in Bash from the project root:
+Install the published package from the signed
+[APT repository](https://trofymenko-r.github.io/board-tune/), using Git and
+Python 3:
+
+```sh
+git clone https://github.com/trofymenko-r/board-tune.git
+cd board-tune
+sudo ./scripts/install-apt
+```
+
+This configures APT and installs `board-tune`. Future updates use normal
+`sudo apt update` and `sudo apt upgrade`. Binary and matching source packages
+are also attached to [GitHub releases](https://github.com/trofymenko-r/board-tune/releases).
+
+For source development or local packaging, run this in Bash from the project root:
 
 ```sh
 . ./setup.env
@@ -35,7 +49,7 @@ script commands documented in [Distribution](docs/distribution.md).
 Builds stay local until `publish-release` is explicitly run. Installing the
 Debian package does not require `setup.env` on the destination system.
 
-The host must run Linux and have Python 3 with venv/pip support;
+Source development needs Linux and Python 3 with venv/pip support;
 offline targets additionally need `sudo`, `lsblk` and `losetup`.
 
 ## Usage

@@ -38,19 +38,19 @@ Each script has `--help` for optional paths and distributions.
 ## Prepare a future version
 
 ```sh
-bump-version 0.1.1
+bump-version 0.1.2
 ```
 
 This updates Python metadata, the manual and Debian changelog together. Review
-and commit with your Signed-off-by before publishing. The local `v0.1.0` tag
-identifies an earlier preparation commit; scripts never move release tags.
+and commit with your Signed-off-by before publishing. Release tags are not
+moved; changed releases need a new version.
 
 ## Publish a release
 
 ```sh
-publish-release v0.1.1 --dry-run
+publish-release v0.1.2 --dry-run
 # Only when ready:
-publish-release v0.1.1
+publish-release v0.1.2
 ```
 
 The actual command requires GitHub CLI authenticated as `trofymenko-r` with
@@ -59,6 +59,9 @@ creates a public repository if missing, configures signing secrets and Pages,
 pushes the release and waits for its workflow. Private keys go to GitHub Secrets
 through stdin. Dry-run does none of this. Existing private repositories and
 conflicting tags are refused; no force push is used.
+
+The `github-pages` deployment environment must allow tags matching `v*`.
+This is configured on the public repository alongside its `main` branch rule.
 
 The APT URL is `https://trofymenko-r.github.io/board-tune/`. Its stable
 suite serves architecture-independent packages with amd64, arm64 and armhf
