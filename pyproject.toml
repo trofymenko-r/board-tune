@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "board-tune"
-version = "0.1.0"
+version = "0.1.1"
 description = "Hook-based customization of Linux boards over SSH or through their boot media"
 readme = "README.md"
 license = {file = "LICENSE"}

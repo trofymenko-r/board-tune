@@ -1,7 +1,8 @@
 # Packages and releases
 
-**Publication is deferred.** Packages and the APT archive are local. Run commands
-from the project root in Bash. Local builds need Python 3 with venv/pip support
+Local builds and signing do not publish anything; `publish-release` is the
+explicit publication step. Run commands from the project root in Bash.
+Local builds need Python 3 with venv/pip support
 and Docker; Debian tools run inside the container. Prepare the current shell:
 
 ```sh
@@ -44,7 +45,7 @@ This updates Python metadata, the manual and Debian changelog together. Review
 and commit with your Signed-off-by before publishing. The local `v0.1.0` tag
 identifies an earlier preparation commit; scripts never move release tags.
 
-## Publish later, when explicitly requested
+## Publish a release
 
 ```sh
 publish-release v0.1.1 --dry-run
@@ -59,7 +60,7 @@ pushes the release and waits for its workflow. Private keys go to GitHub Secrets
 through stdin. Dry-run does none of this. Existing private repositories and
 conflicting tags are refused; no force push is used.
 
-The planned APT URL is `https://trofymenko-r.github.io/board-tune/`. Its stable
+The APT URL is `https://trofymenko-r.github.io/board-tune/`. Its stable
 suite serves architecture-independent packages with amd64, arm64 and armhf
 indexes. GPL-3.0-only applies; every binary version has matching source packages.
 Runtime libraries come from the OS repositories.
@@ -67,7 +68,18 @@ Runtime libraries come from the OS repositories.
 The public key is `packaging/board-tune-archive-key.asc`, fingerprint
 `B8E559579253CC9310CDB77279B88B4171E11938`. Keep it stable across ordinary releases.
 
-## Install from APT after publication
+## Install from APT
+
+After a release has been deployed, clone the public repository and run its
+installation script (Python 3 is required; a virtualenv is not needed):
+
+```sh
+git clone https://github.com/trofymenko-r/board-tune.git
+cd board-tune
+sudo ./scripts/install-apt
+```
+
+In an existing developer shell, you can preview the same operation first:
 
 ```sh
 install-apt --dry-run

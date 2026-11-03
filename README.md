@@ -30,10 +30,10 @@ dependencies or duplicate PATH entries. After changing package dependencies,
 run `python -m pip install -e .` to refresh the installation.
 
 Build a tested Debian package with `build-deb`; packages appear in
-`dist/latest-build/`. Signing, verification and future publication are short
+`dist/latest-build/`. Signing, verification, publication and APT installation are
 script commands documented in [Distribution](docs/distribution.md).
-Packages are prepared locally; public publication is deferred. Installing
-the Debian package does not require `setup.env` on the destination system.
+Builds stay local until `publish-release` is explicitly run. Installing the
+Debian package does not require `setup.env` on the destination system.
 
 The host must run Linux and have Python 3 with venv/pip support;
 offline targets additionally need `sudo`, `lsblk` and `losetup`.

@@ -148,6 +148,15 @@ observations are in docs/board-checks.md. Full suite: 397 passed, 1 root-only sk
 
 ## Existing gaps to address alongside the stages
 
+Public release preparation (2026-11-04): the owner explicitly resumed GitHub
+and APT publication, superseding the earlier publication hold. Prepare 0.1.1
+without moving the existing local v0.1.0 tag, update release instructions and
+retain the existing archive signing key. GitHub CLI authorization completed
+as trofymenko-r. The 0.1.1 binary/source package build passed 457 tests with
+3 skips and lintian has no errors. Repository creation, release workflow,
+Pages deployment and public-URL APT verification are pending; do not describe
+the archive as live until these checks pass.
+
 Debian test workspace correction (2026-11-04): the developer-environment
 tests initially passed only from a checkout. The pybuild workspace omitted
 setup.env because it was missing from debian/pybuild.testfiles, causing three

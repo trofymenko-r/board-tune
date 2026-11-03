@@ -1,3 +1,11 @@
+board-tune (0.1.1-1) unstable; urgency=medium
+
+  * Prepare the first public release with GPL-3.0-only source packages.
+  * Align Wi-Fi properties and add the sourced development environment.
+  * Include setup.env in the isolated Debian test workspace.
+
+ -- Ruslan Trofymenko <ruslan.trofymenko@oddsystems.io>  Wed, 04 Nov 2026 00:52:31 +0200
+
 board-tune (0.1.0-1) unstable; urgency=medium
 
   * Initial Debian package with Python and Kconfig assets.
